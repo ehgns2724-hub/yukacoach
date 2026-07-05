@@ -6,9 +6,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const PUBLIC_DIR = __dirname;
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(__dirname));
+app.use(express.static(PUBLIC_DIR, {
+  extensions: ["html"],
+  index: false,
+  maxAge: process.env.NODE_ENV === "production" ? "1h" : 0
+}));
 
 app.post("/api/ask", async (req, res) => {
   const question = typeof req.body.question === "string" ? req.body.question.trim() : "";
@@ -157,7 +162,7 @@ app.post("/api/ask", async (req, res) => {
 });
 
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
 function listenWithFallback(port, attemptsLeft = 5) {
@@ -178,4 +183,8 @@ function listenWithFallback(port, attemptsLeft = 5) {
   });
 }
 
-listenWithFallback(Number(PORT));
+module.exports = app;
+
+if (!process.env.VERCEL) {
+  listenWithFallback(Number(PORT));
+}
