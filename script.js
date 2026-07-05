@@ -945,6 +945,11 @@ async function askQuestion(question) {
   const hasPhoto = Boolean(imagePayload);
   const finalQuestion = question || "이 사진을 분석해 주세요.";
 
+  console.info("Sending child profile with Gemini request:", {
+    hasProfile: hasProfileData(profile),
+    profile
+  });
+
   setLoading(finalQuestion, hasPhoto);
   searchButton.disabled = true;
   searchButton.textContent = hasPhoto ? "분석중..." : "상담 중";

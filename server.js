@@ -17,6 +17,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.FIREBASE_APP_ID
 };
+const PROFILE_USED_NOTE = "이 답변은 저장된 아이 프로필을 참고해 작성되었습니다.";
 
 function maskConfigValue(value) {
   if (!value) {
@@ -149,6 +150,19 @@ app.post("/api/ask", async (req, res) => {
         profileFields.notes
       ].filter(Boolean).join(", ")
     : "";
+  const personalizationInstruction = hasProfile
+    ? [
+        "저장된 아이 프로필을 반드시 답변에 반영하세요.",
+        "프로필 정보 중 질문과 직접 관련 있는 항목을 자연스럽게 언급하세요.",
+        `답변 마지막에는 반드시 다음 문장을 그대로 포함하세요: "${PROFILE_USED_NOTE}"`
+      ].join(" ")
+    : "저장된 아이 프로필이 없으므로 일반 육아 답변을 제공합니다. 프로필이 없다는 이유만으로 답변을 거절하지 마세요.";
+
+  console.info("Gemini request child profile context:", {
+    hasProfile,
+    profileSummary: profileSummary || "empty",
+    fields: profileLines
+  });
 
   const basePrompt = [
     "당신은 보호자를 돕는 한국어 AI 맞춤 육아 코치입니다.",
@@ -158,9 +172,7 @@ app.post("/api/ask", async (req, res) => {
     "아이의 개월 수, 성별, 수유 방식, 이유식 단계, 알레르기, 수면 패턴, 특이사항을 질문보다 우선 맥락으로 반영하세요.",
     "답변은 한국어로 작성하고, 핵심 요약과 바로 해볼 수 있는 방법을 포함하세요.",
     "답변은 8문장 이내 또는 짧은 bullet 형태로 간결하게 작성하세요.",
-    hasProfile
-      ? "답변 마지막에는 자연스럽게 반드시 다음 문장을 포함하세요: \"이 답변은 저장된 아이 프로필을 참고해 작성되었습니다.\""
-      : "저장된 아이 프로필이 없으므로 일반 육아 답변을 하고, 답변 마지막에는 반드시 다음 문장을 포함하세요: \"더 정확한 답변을 위해 아이 프로필을 입력해 주세요.\"",
+    personalizationInstruction,
     "",
     "아이 프로필:",
     profileLines.length ? profileLines.join("\n") : "- 저장된 프로필 없음",
@@ -187,9 +199,7 @@ app.post("/api/ask", async (req, res) => {
     "를 반드시 포함해주세요.",
     "",
     "아이 프로필이 있으면 이미지 분석과 답변에 반드시 함께 반영하세요.",
-    hasProfile
-      ? "답변 마지막에는 자연스럽게 반드시 다음 문장을 포함하세요: \"이 답변은 저장된 아이 프로필을 참고해 작성되었습니다.\""
-      : "저장된 아이 프로필이 없으므로 답변 마지막에는 반드시 다음 문장을 포함하세요: \"더 정확한 답변을 위해 아이 프로필을 입력해 주세요.\"",
+    personalizationInstruction,
     "",
     "아이 프로필:",
     profileLines.length ? profileLines.join("\n") : "- 저장된 프로필 없음",
@@ -266,7 +276,7 @@ app.post("/api/ask", async (req, res) => {
     }
 
     const candidate = data.candidates?.[0];
-    const answer = candidate?.content?.parts
+    let answer = candidate?.content?.parts
       ?.map((part) => part.text || "")
       .filter(Boolean)
       .join("\n")
@@ -279,6 +289,10 @@ app.post("/api/ask", async (req, res) => {
       });
 
       return sendClientError(res, 502, "API_ERROR");
+    }
+
+    if (hasProfile && !answer.includes(PROFILE_USED_NOTE)) {
+      answer = `${answer}\n\n${PROFILE_USED_NOTE}`;
     }
 
     const wasTruncated = candidate?.finishReason === "MAX_TOKENS";
