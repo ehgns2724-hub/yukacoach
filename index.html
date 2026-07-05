@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>육아코치</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <section class="hero reveal">
+      <div class="hero-copy">
+        <p class="eyebrow">Premium AI Parenting Coach</p>
+        <h1>육아코치</h1>
+        <h2>AI가 함께하는 똑똑한 육아</h2>
+        <p>
+          아이의 성장과 발달,<br>
+          건강, 수면, 이유식, 놀이까지<br>
+          AI가 부모의 육아를 함께 도와드립니다.
+        </p>
+        <a class="hero-cta primary-button" href="#question-panel">질문하기</a>
+      </div>
+
+      <div class="hero-visual" aria-label="엄마가 아기를 안고 있는 따뜻한 일러스트">
+        <div class="illustration-shell">
+          <img
+            class="hero-illustration"
+            src="https://stories.freepiklabs.com/storage/31846/574-Parents_Artboard-1.svg"
+            alt="엄마와 아기가 함께 있는 따뜻한 가족 벡터 일러스트"
+            referrerpolicy="no-referrer"
+          >
+          <div class="ai-care-card" aria-hidden="true">
+            <span>AI</span>
+            <strong>Care guide</strong>
+          </div>
+        </div>
+        <a class="asset-credit" href="https://storyset.com/illustration/parents/rafiki" target="_blank" rel="noopener noreferrer">
+          Illustration by Storyset
+        </a>
+      </div>
+    </section>
+
+    <section class="question-panel panel reveal" id="question-panel" aria-labelledby="question-title">
+      <div class="section-heading">
+        <span class="section-icon">AI</span>
+        <div>
+          <h2 id="question-title">육아코치에게 질문하세요</h2>
+          <p>저장된 아이 프로필을 참고해 더 맞춤형으로 답변합니다.</p>
+        </div>
+      </div>
+
+      <form class="search-form" id="searchForm">
+        <div class="search-row">
+          <input
+            id="questionInput"
+            type="search"
+            aria-label="육아코치 질문 입력"
+            placeholder="기저귀 가는 법, 아기 재우는 방법 등 무엇이든 물어보세요."
+            autocomplete="off"
+            required
+          >
+          <button class="primary-button" type="submit" id="searchButton">질문하기</button>
+        </div>
+      </form>
+
+      <div class="quick-questions" aria-label="추천 질문">
+        <button type="button" data-question="기저귀 가는 법">기저귀 가는 법</button>
+        <button type="button" data-question="아기 재우는 방법">아기 재우는 방법</button>
+        <button type="button" data-question="이유식 시작하기">이유식 시작하기</button>
+        <button type="button" data-question="아기 열날 때">아기 열날 때</button>
+      </div>
+    </section>
+
+    <section class="dashboard">
+      <aside class="side-column">
+        <section class="profile-card panel reveal" aria-labelledby="profile-title">
+          <div class="profile-top">
+            <div class="child-avatar" aria-hidden="true">
+              <span></span>
+            </div>
+            <div>
+              <p class="eyebrow">Child Profile</p>
+              <h2 id="profile-title">아이 프로필</h2>
+              <span class="status-pill" id="profileStatus">미저장</span>
+            </div>
+          </div>
+
+          <form class="profile-form" id="profileForm">
+            <label for="childName">아이 이름</label>
+            <input id="childName" name="childName" type="text" placeholder="예: 하린">
+
+            <label for="childMonths">개월 수</label>
+            <input id="childMonths" name="childMonths" type="number" min="0" max="72" placeholder="예: 8">
+
+            <label for="feedingType">수유 방식</label>
+            <select id="feedingType" name="feedingType">
+              <option value="">선택 안 함</option>
+              <option value="모유">모유</option>
+              <option value="분유">분유</option>
+              <option value="혼합">혼합</option>
+              <option value="이유식">이유식</option>
+            </select>
+
+            <label for="notes">특이사항</label>
+            <textarea id="notes" name="notes" rows="4" placeholder="알레르기, 수면 패턴, 최근 컨디션 등을 적어주세요."></textarea>
+
+            <div class="form-actions">
+              <button class="primary-button" type="submit">프로필 저장</button>
+              <button class="ghost-button" type="button" id="clearProfileButton">초기화</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel reveal" aria-labelledby="favorites-title">
+          <div class="panel-header">
+            <div class="section-heading compact">
+              <span class="section-icon star-icon">★</span>
+              <h2 id="favorites-title">즐겨찾기</h2>
+            </div>
+            <button class="text-button" type="button" id="clearFavoritesButton">전체 삭제</button>
+          </div>
+          <div class="saved-list favorite-list" id="favoritesList"></div>
+        </section>
+      </aside>
+
+      <section class="main-column">
+        <section class="answer-panel panel reveal" id="resultPanel" aria-live="polite">
+          <div class="empty-state">
+            <span class="empty-icon" aria-hidden="true">AI</span>
+            <h2>지금 궁금한 육아 고민을 물어보세요</h2>
+            <p>아이 프로필을 저장하면 개월 수와 수유 방식까지 고려해 답변합니다.</p>
+          </div>
+        </section>
+
+        <section class="panel reveal" aria-labelledby="history-title">
+          <div class="panel-header">
+            <div class="section-heading compact">
+              <span class="section-icon timeline-icon"></span>
+              <h2 id="history-title">질문 기록</h2>
+            </div>
+            <button class="text-button" type="button" id="clearHistoryButton">전체 삭제</button>
+          </div>
+          <div class="timeline-list" id="historyList"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
