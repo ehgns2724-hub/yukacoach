@@ -444,6 +444,17 @@ p {
   gap: 11px;
 }
 
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+}
+
+.field-group {
+  display: grid;
+  gap: 11px;
+}
+
 label {
   color: #334155;
   font-size: 14px;
@@ -927,7 +938,8 @@ textarea:focus {
   }
 
   .search-row,
-  .form-actions {
+  .form-actions,
+  .profile-grid {
     grid-template-columns: 1fr;
     display: grid;
   }

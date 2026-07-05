@@ -13,7 +13,11 @@ const LEGACY_KEYS = {
 const profileForm = document.querySelector("#profileForm");
 const childNameInput = document.querySelector("#childName");
 const childMonthsInput = document.querySelector("#childMonths");
+const childGenderInput = document.querySelector("#childGender");
 const feedingTypeInput = document.querySelector("#feedingType");
+const solidFoodStageInput = document.querySelector("#solidFoodStage");
+const allergiesInput = document.querySelector("#allergies");
+const sleepPatternInput = document.querySelector("#sleepPattern");
 const notesInput = document.querySelector("#notes");
 const profileStatus = document.querySelector("#profileStatus");
 const clearProfileButton = document.querySelector("#clearProfileButton");
@@ -52,12 +56,27 @@ function writeJson(key, value) {
 }
 
 function getProfile() {
-  return readJson(STORAGE_KEYS.profile, {
+  const profile = readJson(STORAGE_KEYS.profile, {
     childName: "",
     childMonths: "",
+    childGender: "",
     feedingType: "",
+    solidFoodStage: "",
+    allergies: "",
+    sleepPattern: "",
     notes: ""
   });
+
+  return {
+    childName: profile.childName || "",
+    childMonths: profile.childMonths || "",
+    childGender: profile.childGender || "",
+    feedingType: profile.feedingType || "",
+    solidFoodStage: profile.solidFoodStage || "",
+    allergies: profile.allergies || "",
+    sleepPattern: profile.sleepPattern || "",
+    notes: profile.notes || ""
+  };
 }
 
 function setProfile(profile) {
@@ -111,8 +130,24 @@ function profileToSummary(profile) {
     parts.push(`${profile.childMonths}개월`);
   }
 
+  if (profile.childGender) {
+    parts.push(profile.childGender);
+  }
+
   if (profile.feedingType) {
     parts.push(profile.feedingType);
+  }
+
+  if (profile.solidFoodStage) {
+    parts.push(`이유식 ${profile.solidFoodStage}`);
+  }
+
+  if (profile.allergies) {
+    parts.push(profile.allergies);
+  }
+
+  if (profile.sleepPattern) {
+    parts.push(profile.sleepPattern);
   }
 
   if (profile.notes) {
@@ -127,10 +162,23 @@ function loadProfileForm() {
 
   childNameInput.value = profile.childName || "";
   childMonthsInput.value = profile.childMonths || "";
+  childGenderInput.value = profile.childGender || "";
   feedingTypeInput.value = profile.feedingType || "";
+  solidFoodStageInput.value = profile.solidFoodStage || "";
+  allergiesInput.value = profile.allergies || "";
+  sleepPatternInput.value = profile.sleepPattern || "";
   notesInput.value = profile.notes || "";
 
-  const hasProfile = Boolean(profile.childName || profile.childMonths || profile.feedingType || profile.notes);
+  const hasProfile = Boolean(
+    profile.childName ||
+    profile.childMonths ||
+    profile.childGender ||
+    profile.feedingType ||
+    profile.solidFoodStage ||
+    profile.allergies ||
+    profile.sleepPattern ||
+    profile.notes
+  );
   profileStatus.textContent = hasProfile ? "맞춤 상담 준비됨" : "미저장";
 }
 
@@ -138,7 +186,11 @@ function collectProfileForm() {
   return {
     childName: childNameInput.value.trim(),
     childMonths: childMonthsInput.value.trim(),
+    childGender: childGenderInput.value,
     feedingType: feedingTypeInput.value,
+    solidFoodStage: solidFoodStageInput.value,
+    allergies: allergiesInput.value.trim(),
+    sleepPattern: sleepPatternInput.value.trim(),
     notes: notesInput.value.trim()
   };
 }

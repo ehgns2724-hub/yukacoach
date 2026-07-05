@@ -89,23 +89,57 @@
           </div>
 
           <form class="profile-form" id="profileForm">
-            <label for="childName">아이 이름</label>
-            <input id="childName" name="childName" type="text" placeholder="예: 하린">
+            <div class="profile-grid">
+              <div class="field-group">
+                <label for="childName">아이 이름</label>
+                <input id="childName" name="childName" type="text" placeholder="예: 민준">
+              </div>
 
-            <label for="childMonths">개월 수</label>
-            <input id="childMonths" name="childMonths" type="number" min="0" max="72" placeholder="예: 8">
+              <div class="field-group">
+                <label for="childMonths">개월 수</label>
+                <input id="childMonths" name="childMonths" type="number" min="0" max="72" placeholder="예: 10">
+              </div>
 
-            <label for="feedingType">수유 방식</label>
-            <select id="feedingType" name="feedingType">
+              <div class="field-group">
+                <label for="childGender">성별</label>
+                <select id="childGender" name="childGender">
+                  <option value="">선택 안 함</option>
+                  <option value="남아">남아</option>
+                  <option value="여아">여아</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="feedingType">수유 방식</label>
+                <select id="feedingType" name="feedingType">
+                  <option value="">선택 안 함</option>
+                  <option value="모유">모유</option>
+                  <option value="분유">분유</option>
+                  <option value="혼합수유">혼합수유</option>
+                  <option value="이유식 병행">이유식 병행</option>
+                </select>
+              </div>
+            </div>
+
+            <label for="solidFoodStage">이유식 단계</label>
+            <select id="solidFoodStage" name="solidFoodStage">
               <option value="">선택 안 함</option>
-              <option value="모유">모유</option>
-              <option value="분유">분유</option>
-              <option value="혼합">혼합</option>
-              <option value="이유식">이유식</option>
+              <option value="이유식 전">이유식 전</option>
+              <option value="초기">초기</option>
+              <option value="중기">중기</option>
+              <option value="후기">후기</option>
+              <option value="완료기">완료기</option>
             </select>
 
+            <label for="allergies">알레르기</label>
+            <input id="allergies" name="allergies" type="text" placeholder="예: 계란 알레르기 있음">
+
+            <label for="sleepPattern">수면 패턴</label>
+            <input id="sleepPattern" name="sleepPattern" type="text" placeholder="예: 밤에 자주 깸, 낮잠 2회">
+
             <label for="notes">특이사항</label>
-            <textarea id="notes" name="notes" rows="4" placeholder="알레르기, 수면 패턴, 최근 컨디션 등을 적어주세요."></textarea>
+            <textarea id="notes" name="notes" rows="4" placeholder="최근 컨디션, 발달 상황, 병원 진료 이력 등을 적어주세요."></textarea>
 
             <div class="form-actions">
               <button class="primary-button" type="submit">프로필 저장</button>
