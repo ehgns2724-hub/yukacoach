@@ -9,6 +9,14 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL;
 const PUBLIC_DIR = __dirname;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const FIREBASE_CONFIG = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
+};
 
 const CLIENT_ERROR_MESSAGES = {
   INVALID_REQUEST: "질문을 입력해주세요.",
@@ -32,6 +40,26 @@ app.use(express.static(PUBLIC_DIR, {
   index: false,
   maxAge: process.env.NODE_ENV === "production" ? "1h" : 0
 }));
+
+app.get("/api/firebase-config", (req, res) => {
+  const missingKeys = Object.entries(FIREBASE_CONFIG)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingKeys.length) {
+    console.warn("Firebase config is incomplete:", missingKeys);
+
+    return res.status(503).json({
+      enabled: false,
+      error: "Firebase 설정이 아직 완료되지 않았습니다."
+    });
+  }
+
+  return res.json({
+    enabled: true,
+    config: FIREBASE_CONFIG
+  });
+});
 
 app.post("/api/ask", async (req, res) => {
   const question = typeof req.body.question === "string" ? req.body.question.trim() : "";

@@ -11,6 +11,24 @@
 </head>
 <body>
   <main class="app">
+    <header class="top-bar">
+      <a class="brand-mark" href="#question-panel" aria-label="육아코치 홈">
+        <span>육</span>
+        <strong>육아코치</strong>
+      </a>
+
+      <div class="auth-card" id="authCard">
+        <div>
+          <strong id="authStatus">로그인 전에는 이 기기에만 저장됩니다.</strong>
+          <span>Google 계정으로 여러 기기에서 이어서 사용할 수 있어요.</span>
+        </div>
+        <div class="auth-actions">
+          <button class="google-button" type="button" id="loginButton">Google로 로그인</button>
+          <button class="ghost-button" type="button" id="logoutButton" hidden>로그아웃</button>
+        </div>
+      </div>
+    </header>
+
     <section class="hero reveal">
       <div class="hero-copy">
         <p class="eyebrow">Premium AI Parenting Coach</p>

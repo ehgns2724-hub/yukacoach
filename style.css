@@ -73,7 +73,49 @@ p {
 .app {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 34px 0 56px;
+  padding: 22px 0 56px;
+}
+
+.top-bar {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(230, 235, 242, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 16px 44px rgba(35, 55, 90, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-mark span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), #8fb0ff);
+  box-shadow: 0 12px 24px rgba(91, 141, 239, 0.22);
+  font-weight: 800;
+}
+
+.brand-mark strong {
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .hero {
@@ -163,6 +205,65 @@ p {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.auth-card {
+  width: min(100%, 560px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.auth-card strong,
+.auth-card span {
+  display: block;
+}
+
+.auth-card strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.auth-card span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.auth-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.google-button {
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: var(--text);
+  background: #fff;
+  font-weight: 800;
+  box-shadow: 0 10px 22px rgba(35, 55, 90, 0.08);
+}
+
+.google-button:disabled {
+  color: var(--muted);
+  background: #f8fafc;
+}
+
+.google-button:hover {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  transform: translateY(-2px);
 }
 
 .hero-visual {
@@ -962,7 +1063,13 @@ textarea:focus {
 @media (max-width: 760px) {
   .app {
     width: min(100% - 24px, 1180px);
-    padding: 20px 0 36px;
+    padding: 12px 0 36px;
+  }
+
+  .top-bar {
+    position: static;
+    display: grid;
+    padding: 14px;
   }
 
   .hero {
@@ -987,6 +1094,20 @@ textarea:focus {
 
   .hero p {
     font-size: 16px;
+  }
+
+  .auth-card {
+    display: grid;
+    width: 100%;
+  }
+
+  .auth-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .google-button {
+    width: 100%;
   }
 
   .hero-visual {

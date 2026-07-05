@@ -37,10 +37,20 @@ const historyList = document.querySelector("#historyList");
 const favoritesList = document.querySelector("#favoritesList");
 const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const clearFavoritesButton = document.querySelector("#clearFavoritesButton");
+const loginButton = document.querySelector("#loginButton");
+const logoutButton = document.querySelector("#logoutButton");
+const authStatus = document.querySelector("#authStatus");
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 let selectedPhoto = null;
+let firebaseState = {
+  enabled: false,
+  auth: null,
+  db: null,
+  user: null,
+  modules: null
+};
 
 function migrateLegacyStorage() {
   Object.keys(STORAGE_KEYS).forEach((name) => {
@@ -106,6 +116,171 @@ function getFavorites() {
 
 function setFavorites(items) {
   writeJson(STORAGE_KEYS.favorites, items);
+}
+
+function getCloudDocRef() {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.doc(firebaseState.db, "users", firebaseState.user.uid);
+}
+
+function getLocalSnapshot() {
+  return {
+    profile: getProfile(),
+    history: getHistory(),
+    favorites: getFavorites(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function applySnapshot(snapshot) {
+  if (snapshot.profile) {
+    setProfile(snapshot.profile);
+  }
+
+  if (Array.isArray(snapshot.history)) {
+    setHistory(snapshot.history);
+  }
+
+  if (Array.isArray(snapshot.favorites)) {
+    setFavorites(snapshot.favorites);
+  }
+
+  loadProfileForm();
+  renderHistory();
+  renderFavorites();
+}
+
+function mergeItems(localItems, cloudItems) {
+  const itemMap = new Map();
+
+  [...cloudItems, ...localItems].forEach((item) => {
+    if (item?.id) {
+      itemMap.set(item.id, item);
+    }
+  });
+
+  return [...itemMap.values()]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 40);
+}
+
+function hasProfileData(profile) {
+  return Boolean(
+    profile.childName ||
+    profile.childMonths ||
+    profile.childGender ||
+    profile.feedingType ||
+    profile.solidFoodStage ||
+    profile.allergies ||
+    profile.sleepPattern ||
+    profile.notes
+  );
+}
+
+async function saveSnapshotToCloud(snapshot = getLocalSnapshot()) {
+  const userDoc = getCloudDocRef();
+
+  if (!userDoc) {
+    return;
+  }
+
+  await firebaseState.modules.setDoc(userDoc, snapshot, { merge: true });
+}
+
+async function syncCloudToLocal() {
+  const userDoc = getCloudDocRef();
+
+  if (!userDoc) {
+    return;
+  }
+
+  const localSnapshot = getLocalSnapshot();
+  const cloudDoc = await firebaseState.modules.getDoc(userDoc);
+  const cloudSnapshot = cloudDoc.exists() ? cloudDoc.data() : {};
+  const mergedSnapshot = {
+    profile: hasProfileData(localSnapshot.profile) ? localSnapshot.profile : (cloudSnapshot.profile || localSnapshot.profile),
+    history: mergeItems(localSnapshot.history, cloudSnapshot.history || []),
+    favorites: mergeItems(localSnapshot.favorites, cloudSnapshot.favorites || []),
+    updatedAt: new Date().toISOString()
+  };
+
+  await saveSnapshotToCloud(mergedSnapshot);
+  applySnapshot(mergedSnapshot);
+}
+
+function updateAuthUI(user) {
+  if (user) {
+    authStatus.textContent = `${user.displayName || user.email || "Google 계정"}으로 클라우드 저장 중`;
+    loginButton.hidden = true;
+    loginButton.disabled = false;
+    logoutButton.hidden = false;
+    return;
+  }
+
+  authStatus.textContent = firebaseState.enabled
+    ? "로그인 전에는 이 기기에만 저장됩니다."
+    : "Firebase 설정 후 구글 로그인을 사용할 수 있습니다.";
+  loginButton.hidden = false;
+  loginButton.disabled = !firebaseState.enabled;
+  logoutButton.hidden = true;
+}
+
+async function initializeFirebase() {
+  try {
+    const response = await fetch("/api/firebase-config");
+    const data = await response.json();
+
+    if (!response.ok || !data.enabled) {
+      console.warn("Firebase is not enabled:", data);
+      firebaseState.enabled = false;
+      updateAuthUI(null);
+      return;
+    }
+
+    const [{ initializeApp }, authModule, firestoreModule] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js")
+    ]);
+
+    const app = initializeApp(data.config);
+    firebaseState = {
+      enabled: true,
+      auth: authModule.getAuth(app),
+      db: firestoreModule.getFirestore(app),
+      user: null,
+      modules: {
+        GoogleAuthProvider: authModule.GoogleAuthProvider,
+        signInWithPopup: authModule.signInWithPopup,
+        signOut: authModule.signOut,
+        onAuthStateChanged: authModule.onAuthStateChanged,
+        doc: firestoreModule.doc,
+        getDoc: firestoreModule.getDoc,
+        setDoc: firestoreModule.setDoc
+      }
+    };
+
+    firebaseState.modules.onAuthStateChanged(firebaseState.auth, async (user) => {
+      firebaseState.user = user;
+      updateAuthUI(user);
+
+      if (user) {
+        try {
+          await syncCloudToLocal();
+        } catch (error) {
+          console.error("Failed to sync Firestore data:", error);
+          renderError("클라우드 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Failed to initialize Firebase:", error);
+    firebaseState.enabled = false;
+    updateAuthUI(null);
+  }
 }
 
 function formatDateTime(value) {
@@ -453,11 +628,13 @@ function addHistory(item) {
   const nextHistory = [item, ...getHistory()].slice(0, 40);
   setHistory(nextHistory);
   renderHistory();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to save history to Firestore:", error));
 }
 
 function removeHistory(id) {
   setHistory(getHistory().filter((item) => item.id !== id));
   renderHistory();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to remove history from Firestore:", error));
 }
 
 function isFavorite(id) {
@@ -470,12 +647,14 @@ function addFavorite(item) {
   if (!favorites.some((favorite) => favorite.id === item.id)) {
     setFavorites([item, ...favorites]);
     renderFavorites();
+    saveSnapshotToCloud().catch((error) => console.error("Failed to save favorite to Firestore:", error));
   }
 }
 
 function removeFavorite(id) {
   setFavorites(getFavorites().filter((item) => item.id !== id));
   renderFavorites();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to remove favorite from Firestore:", error));
 }
 
 function clearSelectedPhoto() {
@@ -655,11 +834,13 @@ profileForm.addEventListener("submit", (event) => {
   event.preventDefault();
   setProfile(collectProfileForm());
   loadProfileForm();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to save profile to Firestore:", error));
 });
 
 clearProfileButton.addEventListener("click", () => {
   localStorage.removeItem(STORAGE_KEYS.profile);
   loadProfileForm();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to clear profile in Firestore:", error));
 });
 
 searchForm.addEventListener("submit", (event) => {
@@ -689,11 +870,41 @@ quickQuestionButtons.forEach((button) => {
 clearHistoryButton.addEventListener("click", () => {
   setHistory([]);
   renderHistory();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to clear history in Firestore:", error));
 });
 
 clearFavoritesButton.addEventListener("click", () => {
   setFavorites([]);
   renderFavorites();
+  saveSnapshotToCloud().catch((error) => console.error("Failed to clear favorites in Firestore:", error));
+});
+
+loginButton.addEventListener("click", async () => {
+  if (!firebaseState.enabled || !firebaseState.auth || !firebaseState.modules) {
+    renderError("Firebase 설정이 아직 완료되지 않았습니다.");
+    return;
+  }
+
+  try {
+    const provider = new firebaseState.modules.GoogleAuthProvider();
+    await firebaseState.modules.signInWithPopup(firebaseState.auth, provider);
+  } catch (error) {
+    console.error("Failed to sign in with Google:", error);
+    renderError("구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+logoutButton.addEventListener("click", async () => {
+  if (!firebaseState.auth || !firebaseState.modules) {
+    return;
+  }
+
+  try {
+    await firebaseState.modules.signOut(firebaseState.auth);
+  } catch (error) {
+    console.error("Failed to sign out:", error);
+    renderError("로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.");
+  }
 });
 
 migrateLegacyStorage();
@@ -701,3 +912,4 @@ loadProfileForm();
 renderHistory();
 renderFavorites();
 observeRevealElements();
+initializeFirebase();
