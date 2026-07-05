@@ -53,6 +53,26 @@
       </div>
 
       <form class="search-form" id="searchForm">
+        <div class="photo-upload-area">
+          <input
+            class="photo-input"
+            id="photoInput"
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+          >
+          <label class="photo-upload-button" for="photoInput">📷 사진 업로드</label>
+          <p>jpg, jpeg, png, webp 파일을 업로드할 수 있어요.</p>
+        </div>
+
+        <div class="photo-preview" id="photoPreview" hidden>
+          <img id="photoPreviewImage" alt="업로드한 사진 미리보기">
+          <div>
+            <strong id="photoPreviewName">선택한 사진</strong>
+            <span>사진과 질문을 함께 분석합니다.</span>
+          </div>
+          <button class="text-button danger-text" type="button" id="removePhotoButton">삭제</button>
+        </div>
+
         <div class="search-row">
           <input
             id="questionInput"
@@ -60,7 +80,6 @@
             aria-label="육아코치 질문 입력"
             placeholder="기저귀 가는 법, 아기 재우는 방법 등 무엇이든 물어보세요."
             autocomplete="off"
-            required
           >
           <button class="primary-button" type="submit" id="searchButton">질문하기</button>
         </div>

@@ -6,14 +6,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL;
 const PUBLIC_DIR = __dirname;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
 const CLIENT_ERROR_MESSAGES = {
   INVALID_REQUEST: "질문을 입력해주세요.",
   MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
   QUOTA_EXCEEDED: "현재 AI 이용량이 많아 잠시 후 다시 시도해주세요.",
   NETWORK_ERROR: "인터넷 연결을 확인해주세요.",
-  API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다."
+  API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다.",
+  INVALID_IMAGE: "jpg, jpeg, png, webp 형식의 사진만 업로드할 수 있습니다."
 };
 
 function sendClientError(res, status, errorCode) {
@@ -23,7 +26,7 @@ function sendClientError(res, status, errorCode) {
   });
 }
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "12mb" }));
 app.use(express.static(PUBLIC_DIR, {
   extensions: ["html"],
   index: false,
@@ -35,11 +38,19 @@ app.post("/api/ask", async (req, res) => {
   const childProfile = typeof req.body.childProfile === "object" && req.body.childProfile !== null
     ? req.body.childProfile
     : {};
+  const image = typeof req.body.image === "object" && req.body.image !== null ? req.body.image : null;
+  const hasImage = Boolean(image?.data && image?.mimeType);
 
   if (!question) {
     console.error("Invalid /api/ask request: missing question body.");
 
     return sendClientError(res, 400, "INVALID_REQUEST");
+  }
+
+  if (hasImage && !ALLOWED_IMAGE_TYPES.has(image.mimeType)) {
+    console.error("Invalid image upload type:", image.mimeType);
+
+    return sendClientError(res, 400, "INVALID_IMAGE");
   }
 
   if (!GEMINI_API_KEY) {
@@ -85,7 +96,7 @@ app.post("/api/ask", async (req, res) => {
       ].filter(Boolean).join(", ")
     : "";
 
-  const prompt = [
+  const basePrompt = [
     "당신은 보호자를 돕는 한국어 AI 맞춤 육아 코치입니다.",
     "의학적 확정 진단을 하지 말고, 안전하고 일반적인 육아 정보를 제공합니다.",
     "응급 증상이나 위험 신호가 있으면 의료 전문가 상담을 권합니다.",
@@ -104,9 +115,50 @@ app.post("/api/ask", async (req, res) => {
     `질문: ${question}`
   ].join("\n");
 
+  const visionPrompt = [
+    "당신은 소아과 전문의와 육아 전문가입니다.",
+    "",
+    "이미지를 먼저 분석한 후",
+    "",
+    "1. 보이는 내용",
+    "2. 가능한 원인",
+    "3. 집에서 관리하는 방법",
+    "4. 병원에 가야 하는 경우",
+    "5. 응급 여부",
+    "",
+    "를 부모도 이해하기 쉽게 설명해주세요.",
+    "",
+    "확실하지 않은 내용은 추측하지 말고",
+    "'정확한 진단은 의료기관에서 받아야 합니다.'",
+    "를 반드시 포함해주세요.",
+    "",
+    "아이 프로필이 있으면 이미지 분석과 답변에 반드시 함께 반영하세요.",
+    hasProfile
+      ? "답변 마지막에는 자연스럽게 반드시 다음 문장을 포함하세요: \"이 답변은 저장된 아이 프로필을 참고해 작성되었습니다.\""
+      : "저장된 아이 프로필이 없으므로 답변 마지막에는 반드시 다음 문장을 포함하세요: \"더 정확한 답변을 위해 아이 프로필을 입력해 주세요.\"",
+    "",
+    "아이 프로필:",
+    profileLines.length ? profileLines.join("\n") : "- 저장된 프로필 없음",
+    profileSummary ? `요약 문장: ${profileSummary}.` : "",
+    "",
+    `질문: ${question}`
+  ].join("\n");
+
+  const prompt = hasImage ? visionPrompt : basePrompt;
+  const parts = [{ text: prompt }];
+
+  if (hasImage) {
+    parts.push({
+      inline_data: {
+        mime_type: image.mimeType,
+        data: image.data
+      }
+    });
+  }
+
   try {
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${hasImage ? GEMINI_VISION_MODEL : GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -116,7 +168,7 @@ app.post("/api/ask", async (req, res) => {
           contents: [
             {
               role: "user",
-              parts: [{ text: prompt }]
+              parts
             }
           ],
           generationConfig: {

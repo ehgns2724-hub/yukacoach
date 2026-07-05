@@ -560,6 +560,91 @@ textarea:focus {
   transform: translateY(-2px);
 }
 
+.photo-upload-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.photo-upload-button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid rgba(91, 141, 239, 0.18);
+  border-radius: 16px;
+  color: var(--primary-dark);
+  background: var(--secondary);
+  box-shadow: 0 12px 24px rgba(91, 141, 239, 0.1);
+  transition: transform 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+}
+
+.photo-upload-button:hover {
+  border-color: var(--primary);
+  background: #fff;
+  transform: translateY(-2px);
+}
+
+.photo-upload-area p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.photo-preview {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(91, 141, 239, 0.14);
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ffffff, rgba(238, 244, 255, 0.72));
+}
+
+.photo-preview[hidden] {
+  display: none;
+}
+
+.photo-preview img {
+  width: 74px;
+  height: 74px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.photo-preview strong,
+.photo-preview span {
+  display: block;
+}
+
+.photo-preview strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-preview span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .answer-panel {
   min-height: 420px;
 }
@@ -953,6 +1038,23 @@ textarea:focus {
   .profile-grid {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .photo-upload-area {
+    display: grid;
+  }
+
+  .photo-upload-button {
+    width: 100%;
+  }
+
+  .photo-preview {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .photo-preview .text-button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .primary-button,

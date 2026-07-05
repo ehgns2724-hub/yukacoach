@@ -24,6 +24,11 @@ const clearProfileButton = document.querySelector("#clearProfileButton");
 
 const searchForm = document.querySelector("#searchForm");
 const questionInput = document.querySelector("#questionInput");
+const photoInput = document.querySelector("#photoInput");
+const photoPreview = document.querySelector("#photoPreview");
+const photoPreviewImage = document.querySelector("#photoPreviewImage");
+const photoPreviewName = document.querySelector("#photoPreviewName");
+const removePhotoButton = document.querySelector("#removePhotoButton");
 const resultPanel = document.querySelector("#resultPanel");
 const searchButton = document.querySelector("#searchButton");
 const quickQuestionButtons = document.querySelectorAll("[data-question]");
@@ -32,6 +37,10 @@ const historyList = document.querySelector("#historyList");
 const favoritesList = document.querySelector("#favoritesList");
 const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const clearFavoritesButton = document.querySelector("#clearFavoritesButton");
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+let selectedPhoto = null;
 
 function migrateLegacyStorage() {
   Object.keys(STORAGE_KEYS).forEach((name) => {
@@ -216,7 +225,7 @@ function splitAnswer(answer) {
   };
 }
 
-function setLoading(question) {
+function setLoading(question, hasPhoto = false) {
   resultPanel.innerHTML = "";
 
   const loading = document.createElement("div");
@@ -228,10 +237,12 @@ function setLoading(question) {
   icon.textContent = "AI";
 
   const title = document.createElement("h2");
-  title.textContent = "육아코치가 답변을 준비하고 있어요";
+  title.textContent = hasPhoto ? "분석중..." : "육아코치가 답변을 준비하고 있어요";
 
   const message = document.createElement("p");
-  message.textContent = `"${question}"에 대해 아이 프로필을 참고해 정리하는 중입니다.`;
+  message.textContent = hasPhoto
+    ? "사진을 먼저 살펴본 뒤 아이 프로필과 질문을 함께 참고해 답변합니다."
+    : `"${question}"에 대해 아이 프로필을 참고해 정리하는 중입니다.`;
 
   loading.append(icon, title, message);
   resultPanel.append(loading);
@@ -247,14 +258,14 @@ function renderAnswer(item, options = {}) {
 
   const headerText = document.createElement("div");
   const title = document.createElement("h2");
-  title.textContent = item.question;
+  title.textContent = item.hasImage ? `사진 분석 · ${item.question}` : item.question;
   const subtitle = document.createElement("p");
   subtitle.textContent = item.profileSummary || "육아코치가 아이 상황을 고려해 답변했습니다.";
   headerText.append(title, subtitle);
 
   const tag = document.createElement("span");
   tag.className = "tag";
-  tag.textContent = "AI 상담";
+  tag.textContent = item.hasImage ? "AI 사진 분석" : "AI 상담";
   header.append(headerText, tag);
 
   const card = document.createElement("article");
@@ -269,7 +280,7 @@ function renderAnswer(item, options = {}) {
   content.className = "answer-content";
 
   const cardTitle = document.createElement("h3");
-  cardTitle.textContent = "육아코치 답변";
+  cardTitle.textContent = item.hasImage ? "사진 분석 결과" : "육아코치 답변";
 
   const highlight = document.createElement("p");
   highlight.className = "answer-highlight";
@@ -316,7 +327,9 @@ const USER_ERROR_MESSAGES = {
   MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
   QUOTA_EXCEEDED: "현재 AI 이용량이 많아 잠시 후 다시 시도해주세요.",
   NETWORK_ERROR: "인터넷 연결을 확인해주세요.",
-  API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다."
+  API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다.",
+  INVALID_IMAGE: "jpg, jpeg, png, webp 형식의 사진만 업로드할 수 있습니다.",
+  IMAGE_TOO_LARGE: "사진 용량이 너무 큽니다. 5MB 이하의 사진을 선택해주세요."
 };
 
 function getFriendlyErrorMessage(errorCode, fallbackMessage) {
@@ -363,7 +376,8 @@ function createSavedItem(item, source) {
   const title = document.createElement("button");
   title.className = "saved-title";
   title.type = "button";
-  title.textContent = source === "favorites" ? `★ ${item.question}` : item.question;
+  const savedTitle = item.hasImage ? `사진 분석 · ${item.question}` : item.question;
+  title.textContent = source === "favorites" ? `★ ${savedTitle}` : savedTitle;
   title.addEventListener("click", () => renderAnswer(item));
 
   const meta = document.createElement("p");
@@ -464,13 +478,83 @@ function removeFavorite(id) {
   renderFavorites();
 }
 
+function clearSelectedPhoto() {
+  selectedPhoto = null;
+  photoInput.value = "";
+  photoPreview.hidden = true;
+  photoPreviewImage.removeAttribute("src");
+  photoPreviewName.textContent = "선택한 사진";
+}
+
+function readPhotoFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      reject({ userMessage: USER_ERROR_MESSAGES.INVALID_IMAGE });
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      reject({ userMessage: USER_ERROR_MESSAGES.IMAGE_TOO_LARGE });
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const [, base64Data = ""] = dataUrl.split(",");
+
+      resolve({
+        name: file.name,
+        mimeType: file.type,
+        dataUrl,
+        data: base64Data
+      });
+    };
+
+    reader.onerror = () => {
+      reject({ userMessage: "사진을 불러오지 못했습니다. 다른 사진을 선택해주세요." });
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handlePhotoChange(event) {
+  const [file] = event.target.files;
+
+  if (!file) {
+    clearSelectedPhoto();
+    return;
+  }
+
+  try {
+    selectedPhoto = await readPhotoFile(file);
+    photoPreviewImage.src = selectedPhoto.dataUrl;
+    photoPreviewName.textContent = selectedPhoto.name;
+    photoPreview.hidden = false;
+  } catch (error) {
+    console.error("Failed to read uploaded photo:", error);
+    clearSelectedPhoto();
+    renderError(error.userMessage || USER_ERROR_MESSAGES.INVALID_IMAGE);
+  }
+}
+
 async function askQuestion(question) {
   const profile = getProfile();
   const profileSummary = profileToSummary(profile);
+  const imagePayload = selectedPhoto
+    ? {
+        mimeType: selectedPhoto.mimeType,
+        data: selectedPhoto.data
+      }
+    : null;
+  const hasPhoto = Boolean(imagePayload);
+  const finalQuestion = question || "이 사진을 분석해 주세요.";
 
-  setLoading(question);
+  setLoading(finalQuestion, hasPhoto);
   searchButton.disabled = true;
-  searchButton.textContent = "상담 중";
+  searchButton.textContent = hasPhoto ? "분석중..." : "상담 중";
 
   try {
     const response = await fetch("/api/ask", {
@@ -479,8 +563,9 @@ async function askQuestion(question) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        question,
-        childProfile: profile
+        question: finalQuestion,
+        childProfile: profile,
+        image: imagePayload
       })
     });
 
@@ -516,11 +601,13 @@ async function askQuestion(question) {
 
     const item = {
       id: createId(),
-      question,
+      question: finalQuestion,
       answer: data.answer,
       createdAt: new Date().toISOString(),
       profile,
-      profileSummary
+      profileSummary,
+      hasImage: hasPhoto,
+      imageName: selectedPhoto?.name || ""
     };
 
     addHistory(item);
@@ -580,13 +667,16 @@ searchForm.addEventListener("submit", (event) => {
 
   const question = questionInput.value.trim();
 
-  if (!question) {
+  if (!question && !selectedPhoto) {
     questionInput.focus();
     return;
   }
 
   askQuestion(question);
 });
+
+photoInput.addEventListener("change", handlePhotoChange);
+removePhotoButton.addEventListener("click", clearSelectedPhoto);
 
 quickQuestionButtons.forEach((button) => {
   button.addEventListener("click", () => {
