@@ -49,8 +49,12 @@ let firebaseState = {
   auth: null,
   db: null,
   user: null,
-  modules: null
+  modules: null,
+  syncing: false,
+  cloudAvailable: false
 };
+
+const FIRESTORE_TIMEOUT_MS = 8000;
 
 function migrateLegacyStorage() {
   Object.keys(STORAGE_KEYS).forEach((name) => {
@@ -126,6 +130,23 @@ function getCloudDocRef() {
   return firebaseState.modules.doc(firebaseState.db, "users", firebaseState.user.uid);
 }
 
+function getCloudDocPath() {
+  return firebaseState.user ? `users/${firebaseState.user.uid}` : "";
+}
+
+function withTimeout(promise, label, timeoutMs = FIRESTORE_TIMEOUT_MS) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
+}
+
 function getLocalSnapshot() {
   return {
     profile: getProfile(),
@@ -183,11 +204,43 @@ function hasProfileData(profile) {
 async function saveSnapshotToCloud(snapshot = getLocalSnapshot()) {
   const userDoc = getCloudDocRef();
 
-  if (!userDoc) {
+  if (!userDoc || (!firebaseState.cloudAvailable && !firebaseState.syncing)) {
     return;
   }
 
-  await firebaseState.modules.setDoc(userDoc, snapshot, { merge: true });
+  const docPath = getCloudDocPath();
+  console.log("Firestore save start:", {
+    path: docPath,
+    historyCount: snapshot.history?.length || 0,
+    favoritesCount: snapshot.favorites?.length || 0,
+    hasProfile: hasProfileData(snapshot.profile || {})
+  });
+
+  try {
+    await withTimeout(firebaseState.modules.setDoc(userDoc, snapshot, { merge: true }), "Firestore setDoc");
+    console.log("Firestore save success:", { path: docPath });
+
+    if (firebaseState.user && !firebaseState.syncing) {
+      authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
+    }
+  } catch (error) {
+    console.error("Firestore save failed:", {
+      path: docPath,
+      error
+    });
+    firebaseState.cloudAvailable = false;
+    authStatus.textContent = "클라우드 저장 실패 - 로컬 저장으로 전환";
+    throw error;
+  } finally {
+    console.log("Firestore save finished:", { path: docPath });
+  }
+}
+
+function handleCloudSaveError(context, error) {
+  console.error(context, error);
+  firebaseState.cloudAvailable = false;
+  authStatus.textContent = "클라우드 저장 실패 - 로컬 저장으로 전환";
+  renderError("Firestore 저장 중 문제가 발생했습니다. 콘솔의 오류 코드와 Firestore 보안 규칙을 확인해주세요.", error?.code || "firestore/save-failed");
 }
 
 async function syncCloudToLocal() {
@@ -197,23 +250,54 @@ async function syncCloudToLocal() {
     return;
   }
 
-  const localSnapshot = getLocalSnapshot();
-  const cloudDoc = await firebaseState.modules.getDoc(userDoc);
-  const cloudSnapshot = cloudDoc.exists() ? cloudDoc.data() : {};
-  const mergedSnapshot = {
-    profile: hasProfileData(localSnapshot.profile) ? localSnapshot.profile : (cloudSnapshot.profile || localSnapshot.profile),
-    history: mergeItems(localSnapshot.history, cloudSnapshot.history || []),
-    favorites: mergeItems(localSnapshot.favorites, cloudSnapshot.favorites || []),
-    updatedAt: new Date().toISOString()
-  };
+  const docPath = getCloudDocPath();
+  firebaseState.syncing = true;
+  firebaseState.cloudAvailable = true;
+  authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 중`;
 
-  await saveSnapshotToCloud(mergedSnapshot);
-  applySnapshot(mergedSnapshot);
+  console.log("Firestore sync start:", { path: docPath });
+
+  try {
+    const localSnapshot = getLocalSnapshot();
+
+    console.log("Firestore load start:", { path: docPath });
+    const cloudDoc = await withTimeout(firebaseState.modules.getDoc(userDoc), "Firestore getDoc");
+    console.log("Firestore load success:", {
+      path: docPath,
+      exists: cloudDoc.exists()
+    });
+
+    const cloudSnapshot = cloudDoc.exists() ? cloudDoc.data() : {};
+    const mergedSnapshot = {
+      profile: hasProfileData(localSnapshot.profile) ? localSnapshot.profile : (cloudSnapshot.profile || localSnapshot.profile),
+      history: mergeItems(localSnapshot.history, cloudSnapshot.history || []),
+      favorites: mergeItems(localSnapshot.favorites, cloudSnapshot.favorites || []),
+      updatedAt: new Date().toISOString()
+    };
+
+    await saveSnapshotToCloud(mergedSnapshot);
+    applySnapshot(mergedSnapshot);
+
+    authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
+    firebaseState.cloudAvailable = true;
+    console.log("Firestore sync complete:", { path: docPath });
+  } catch (error) {
+    console.error("Firestore sync failed:", {
+      path: docPath,
+      error
+    });
+    firebaseState.cloudAvailable = false;
+    authStatus.textContent = "클라우드 저장 실패 - 로컬 저장으로 전환";
+    renderError("Firestore 저장 중 문제가 발생했습니다. 콘솔의 오류 코드와 Firestore 보안 규칙을 확인해주세요.", error.code || "firestore/sync-failed");
+  } finally {
+    firebaseState.syncing = false;
+    console.log("Firestore sync finished:", { path: docPath });
+  }
 }
 
 function updateAuthUI(user) {
   if (user) {
-    authStatus.textContent = `${user.displayName || user.email || "Google 계정"}으로 클라우드 저장 중`;
+    authStatus.textContent = `${user.displayName || user.email || "Google 계정"} · 클라우드 저장 중`;
     loginButton.hidden = true;
     loginButton.disabled = false;
     logoutButton.hidden = false;
@@ -279,8 +363,9 @@ async function initializeFirebase() {
         try {
           await syncCloudToLocal();
         } catch (error) {
-          console.error("Failed to sync Firestore data:", error);
-          renderError("클라우드 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+          console.error("Unexpected Firestore sync error:", error);
+          firebaseState.cloudAvailable = false;
+          authStatus.textContent = "클라우드 저장 실패 - 로컬 저장으로 전환";
         }
       }
     });
@@ -661,13 +746,13 @@ function addHistory(item) {
   const nextHistory = [item, ...getHistory()].slice(0, 40);
   setHistory(nextHistory);
   renderHistory();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to save history to Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save history to Firestore:", error));
 }
 
 function removeHistory(id) {
   setHistory(getHistory().filter((item) => item.id !== id));
   renderHistory();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to remove history from Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to remove history from Firestore:", error));
 }
 
 function isFavorite(id) {
@@ -680,14 +765,14 @@ function addFavorite(item) {
   if (!favorites.some((favorite) => favorite.id === item.id)) {
     setFavorites([item, ...favorites]);
     renderFavorites();
-    saveSnapshotToCloud().catch((error) => console.error("Failed to save favorite to Firestore:", error));
+    saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save favorite to Firestore:", error));
   }
 }
 
 function removeFavorite(id) {
   setFavorites(getFavorites().filter((item) => item.id !== id));
   renderFavorites();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to remove favorite from Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to remove favorite from Firestore:", error));
 }
 
 function clearSelectedPhoto() {
@@ -867,13 +952,13 @@ profileForm.addEventListener("submit", (event) => {
   event.preventDefault();
   setProfile(collectProfileForm());
   loadProfileForm();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to save profile to Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save profile to Firestore:", error));
 });
 
 clearProfileButton.addEventListener("click", () => {
   localStorage.removeItem(STORAGE_KEYS.profile);
   loadProfileForm();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to clear profile in Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear profile in Firestore:", error));
 });
 
 searchForm.addEventListener("submit", (event) => {
@@ -903,13 +988,13 @@ quickQuestionButtons.forEach((button) => {
 clearHistoryButton.addEventListener("click", () => {
   setHistory([]);
   renderHistory();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to clear history in Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear history in Firestore:", error));
 });
 
 clearFavoritesButton.addEventListener("click", () => {
   setFavorites([]);
   renderFavorites();
-  saveSnapshotToCloud().catch((error) => console.error("Failed to clear favorites in Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear favorites in Firestore:", error));
 });
 
 loginButton.addEventListener("click", async () => {
