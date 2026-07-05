@@ -54,6 +54,7 @@ let firebaseState = {
   syncing: false,
   cloudAvailable: false
 };
+let requestedLogout = false;
 
 const FIRESTORE_TIMEOUT_MS = 8000;
 
@@ -145,6 +146,26 @@ function getProfileDocRef() {
 
 function getProfileDocPath() {
   return firebaseState.user ? `users/${firebaseState.user.uid}/profile/profile` : "";
+}
+
+function getHistoryCollectionRef() {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.collection(firebaseState.db, "users", firebaseState.user.uid, "history");
+}
+
+function getHistoryDocRef(id) {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.doc(firebaseState.db, "users", firebaseState.user.uid, "history", id);
+}
+
+function getHistoryCollectionPath() {
+  return firebaseState.user ? `users/${firebaseState.user.uid}/history` : "";
 }
 
 function showToast(message) {
@@ -290,6 +311,98 @@ async function loadProfileFromCloud() {
   }
 }
 
+function toHistoryDoc(item) {
+  return {
+    id: item.id,
+    question: item.question,
+    answer: item.answer,
+    hasImage: Boolean(item.hasImage),
+    createdAt: item.createdAt || new Date().toISOString(),
+    profileSummary: item.profileSummary || "",
+    imageName: item.imageName || ""
+  };
+}
+
+async function saveHistoryItemToCloud(item) {
+  const historyDoc = getHistoryDocRef(item.id);
+
+  if (!historyDoc || !firebaseState.cloudAvailable) {
+    return;
+  }
+
+  const path = `${getHistoryCollectionPath()}/${item.id}`;
+  const payload = toHistoryDoc(item);
+
+  console.log("Firestore history setDoc start:", { path, payload });
+
+  try {
+    await withTimeout(firebaseState.modules.setDoc(historyDoc, payload, { merge: true }), "Firestore history setDoc");
+    console.log("Firestore history setDoc success:", { path });
+  } catch (error) {
+    console.error("Firestore history setDoc failed:", { path, error });
+    throw error;
+  } finally {
+    console.log("Firestore history setDoc finished:", { path });
+  }
+}
+
+async function loadHistoryFromCloud() {
+  const historyCollection = getHistoryCollectionRef();
+
+  if (!historyCollection) {
+    return [];
+  }
+
+  const path = getHistoryCollectionPath();
+  console.log("Firestore history query start:", { path });
+
+  try {
+    const queryRef = firebaseState.modules.query(
+      historyCollection,
+      firebaseState.modules.orderBy("createdAt", "desc"),
+      firebaseState.modules.limit(20)
+    );
+    const snapshot = await withTimeout(firebaseState.modules.getDocs(queryRef), "Firestore history getDocs");
+    const items = snapshot.docs.map((docSnapshot) => ({
+      id: docSnapshot.id,
+      ...docSnapshot.data()
+    }));
+
+    console.log("Firestore history query success:", {
+      path,
+      count: items.length
+    });
+
+    return items;
+  } catch (error) {
+    console.error("Firestore history query failed:", { path, error });
+    throw error;
+  } finally {
+    console.log("Firestore history query finished:", { path });
+  }
+}
+
+async function migrateLocalHistoryToCloud(localHistory) {
+  if (!firebaseState.cloudAvailable || !localHistory.length) {
+    return;
+  }
+
+  console.log("Firestore history migration start:", {
+    path: getHistoryCollectionPath(),
+    count: localHistory.length
+  });
+
+  try {
+    await Promise.all(localHistory.slice(0, 40).map((item) => saveHistoryItemToCloud(item)));
+    console.log("Firestore history migration success");
+  } catch (error) {
+    console.error("Firestore history migration failed:", error);
+    throw error;
+  } finally {
+    console.log("Firestore history migration finished");
+  }
+}
+
 async function saveProfileToCloud(profile, options = {}) {
   const profileDoc = getProfileDocRef();
 
@@ -359,9 +472,11 @@ async function syncCloudToLocal() {
 
     const cloudSnapshot = cloudDoc.exists() ? cloudDoc.data() : {};
     const cloudProfile = await loadProfileFromCloud();
+    await migrateLocalHistoryToCloud(localSnapshot.history);
+    const cloudHistory = await loadHistoryFromCloud();
     const mergedSnapshot = {
       profile: cloudProfile || (hasProfileData(localSnapshot.profile) ? localSnapshot.profile : (cloudSnapshot.profile || localSnapshot.profile)),
-      history: mergeItems(localSnapshot.history, cloudSnapshot.history || []),
+      history: cloudHistory.length ? cloudHistory : mergeItems(localSnapshot.history, cloudSnapshot.history || []).slice(0, 20),
       favorites: mergeItems(localSnapshot.favorites, cloudSnapshot.favorites || []),
       updatedAt: new Date().toISOString()
     };
@@ -398,8 +513,14 @@ function updateAuthUI(user) {
     return;
   }
 
-  localStorage.removeItem(STORAGE_KEYS.profile);
-  loadProfileForm();
+  if (requestedLogout) {
+    localStorage.removeItem(STORAGE_KEYS.profile);
+    loadProfileForm();
+    historyList.innerHTML = "";
+    historyList.append(createEmptyMessage("로그아웃했습니다. 질문 기록은 로그인 전 로컬 모드에서 새로 표시됩니다."));
+    requestedLogout = false;
+  }
+
   authStatus.textContent = firebaseState.enabled
     ? "로그인 전에는 이 기기에만 저장됩니다."
     : "Firebase 설정 후 구글 로그인을 사용할 수 있습니다.";
@@ -446,8 +567,13 @@ async function initializeFirebase() {
         signOut: authModule.signOut,
         onAuthStateChanged: authModule.onAuthStateChanged,
         doc: firestoreModule.doc,
+        collection: firestoreModule.collection,
         getDoc: firestoreModule.getDoc,
-        setDoc: firestoreModule.setDoc
+        getDocs: firestoreModule.getDocs,
+        setDoc: firestoreModule.setDoc,
+        query: firestoreModule.query,
+        orderBy: firestoreModule.orderBy,
+        limit: firestoreModule.limit
       }
     };
 
@@ -842,6 +968,7 @@ function addHistory(item) {
   const nextHistory = [item, ...getHistory()].slice(0, 40);
   setHistory(nextHistory);
   renderHistory();
+  saveHistoryItemToCloud(item).catch((error) => handleCloudSaveError("Failed to save history item to Firestore:", error));
   saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save history to Firestore:", error));
 }
 
@@ -1122,8 +1249,10 @@ logoutButton.addEventListener("click", async () => {
   }
 
   try {
+    requestedLogout = true;
     await firebaseState.modules.signOut(firebaseState.auth);
   } catch (error) {
+    requestedLogout = false;
     console.error("Failed to sign out:", error);
     renderError("로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.");
   }
