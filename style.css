@@ -1019,6 +1019,18 @@ textarea:focus {
   white-space: pre-wrap;
 }
 
+.error-code {
+  display: inline-flex;
+  margin-top: 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  color: var(--primary-dark);
+  background: rgba(238, 244, 255, 0.9);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(18px);

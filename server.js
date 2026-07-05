@@ -18,6 +18,30 @@ const FIREBASE_CONFIG = {
   appId: process.env.FIREBASE_APP_ID
 };
 
+function maskConfigValue(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (value.length <= 8) {
+    return `${value.slice(0, 2)}***`;
+  }
+
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function getFirebaseConfigDiagnostics() {
+  return {
+    hasApiKey: Boolean(FIREBASE_CONFIG.apiKey),
+    apiKeyPreview: maskConfigValue(FIREBASE_CONFIG.apiKey),
+    authDomain: FIREBASE_CONFIG.authDomain || "",
+    projectId: FIREBASE_CONFIG.projectId || "",
+    storageBucket: FIREBASE_CONFIG.storageBucket || "",
+    messagingSenderId: maskConfigValue(FIREBASE_CONFIG.messagingSenderId),
+    appIdPreview: maskConfigValue(FIREBASE_CONFIG.appId)
+  };
+}
+
 const CLIENT_ERROR_MESSAGES = {
   INVALID_REQUEST: "질문을 입력해주세요.",
   MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
@@ -42,6 +66,8 @@ app.use(express.static(PUBLIC_DIR, {
 }));
 
 app.get("/api/firebase-config", (req, res) => {
+  console.info("Firebase config diagnostics:", getFirebaseConfigDiagnostics());
+
   const missingKeys = Object.entries(FIREBASE_CONFIG)
     .filter(([, value]) => !value)
     .map(([key]) => key);

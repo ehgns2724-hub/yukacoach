@@ -240,6 +240,14 @@ async function initializeFirebase() {
       return;
     }
 
+    console.info("Firebase config loaded:", {
+      authDomain: data.config.authDomain,
+      projectId: data.config.projectId,
+      hasApiKey: Boolean(data.config.apiKey),
+      apiKeyPreview: data.config.apiKey ? `${data.config.apiKey.slice(0, 4)}...${data.config.apiKey.slice(-4)}` : "",
+      appIdPreview: data.config.appId ? `${data.config.appId.slice(0, 4)}...${data.config.appId.slice(-4)}` : ""
+    });
+
     const [{ initializeApp }, authModule, firestoreModule] = await Promise.all([
       import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
       import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
@@ -511,7 +519,7 @@ function getFriendlyErrorMessage(errorCode, fallbackMessage) {
   return USER_ERROR_MESSAGES[errorCode] || fallbackMessage || USER_ERROR_MESSAGES.API_ERROR;
 }
 
-function renderError(message) {
+function renderError(message, errorCode = "") {
   resultPanel.innerHTML = "";
 
   const errorBox = document.createElement("div");
@@ -532,9 +540,34 @@ function renderError(message) {
   summary.textContent = message;
 
   content.append(title, summary);
+
+  if (errorCode) {
+    const code = document.createElement("code");
+    code.className = "error-code";
+    code.textContent = `오류 코드: ${errorCode}`;
+    content.append(code);
+  }
+
   errorBox.append(icon, content);
 
   resultPanel.append(errorBox);
+}
+
+function getFirebaseAuthErrorMessage(error) {
+  const code = error?.code || "auth/unknown";
+  const messages = {
+    "auth/unauthorized-domain": "현재 도메인이 Firebase Auth 승인 도메인에 등록되어 있지 않습니다. Firebase 콘솔의 Authentication > Settings > Authorized domains에 이 사이트 도메인을 추가해주세요.",
+    "auth/popup-closed-by-user": "로그인 팝업이 닫혔습니다. 다시 Google로 로그인을 눌러주세요.",
+    "auth/operation-not-allowed": "Firebase 콘솔에서 Google 로그인 제공업체가 활성화되어 있지 않습니다. Authentication > Sign-in method에서 Google을 사용 설정해주세요.",
+    "auth/popup-blocked": "브라우저가 로그인 팝업을 차단했습니다. 팝업 허용 후 다시 시도해주세요.",
+    "auth/cancelled-popup-request": "이전 로그인 팝업 요청이 취소되었습니다. 잠시 후 다시 시도해주세요.",
+    "auth/network-request-failed": "네트워크 연결 문제로 로그인하지 못했습니다. 인터넷 연결을 확인해주세요."
+  };
+
+  return {
+    code,
+    message: messages[code] || "Google 로그인 중 문제가 발생했습니다. 아래 오류 코드를 확인해주세요."
+  };
 }
 
 function createEmptyMessage(text) {
@@ -890,7 +923,8 @@ loginButton.addEventListener("click", async () => {
     await firebaseState.modules.signInWithPopup(firebaseState.auth, provider);
   } catch (error) {
     console.error("Failed to sign in with Google:", error);
-    renderError("구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    const authError = getFirebaseAuthErrorMessage(error);
+    renderError(authError.message, authError.code);
   }
 });
 
