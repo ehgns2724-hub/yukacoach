@@ -8,6 +8,21 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const PUBLIC_DIR = __dirname;
 
+const CLIENT_ERROR_MESSAGES = {
+  INVALID_REQUEST: "질문을 입력해주세요.",
+  MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
+  QUOTA_EXCEEDED: "현재 AI 이용량이 많아 잠시 후 다시 시도해주세요.",
+  NETWORK_ERROR: "인터넷 연결을 확인해주세요.",
+  API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다."
+};
+
+function sendClientError(res, status, errorCode) {
+  return res.status(status).json({
+    errorCode,
+    error: CLIENT_ERROR_MESSAGES[errorCode] || CLIENT_ERROR_MESSAGES.API_ERROR
+  });
+}
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(PUBLIC_DIR, {
   extensions: ["html"],
@@ -24,19 +39,13 @@ app.post("/api/ask", async (req, res) => {
   if (!question) {
     console.error("Invalid /api/ask request: missing question body.");
 
-    return res.status(400).json({
-      error: "질문을 입력해주세요.",
-      details: "POST /api/ask 요청 본문에 question 문자열이 필요합니다."
-    });
+    return sendClientError(res, 400, "INVALID_REQUEST");
   }
 
   if (!GEMINI_API_KEY) {
     console.error("Server configuration error: GEMINI_API_KEY is missing from .env.");
 
-    return res.status(500).json({
-      error: ".env 파일에 GEMINI_API_KEY를 설정해주세요.",
-      details: "프로젝트 폴더의 .env 파일에 GEMINI_API_KEY=실제_API_키 형식으로 값을 넣은 뒤 서버를 다시 시작해주세요."
-    });
+    return sendClientError(res, 500, "MISSING_API_KEY");
   }
 
   const profileFields = {
@@ -131,14 +140,10 @@ app.post("/api/ask", async (req, res) => {
         parseError
       });
 
-      return res.status(502).json({
-        error: "Gemini API 응답을 해석하지 못했습니다.",
-        details: rawBody || geminiResponse.statusText
-      });
+      return sendClientError(res, 502, "API_ERROR");
     }
 
     if (!geminiResponse.ok) {
-      const message = data.error?.message || "Gemini API 요청에 실패했습니다.";
       const details = {
         status: geminiResponse.status,
         statusText: geminiResponse.statusText,
@@ -147,10 +152,11 @@ app.post("/api/ask", async (req, res) => {
 
       console.error("Gemini API request failed:", details);
 
-      return res.status(geminiResponse.status).json({
-        error: message,
-        details: JSON.stringify(details, null, 2)
-      });
+      if (geminiResponse.status === 429) {
+        return sendClientError(res, 429, "QUOTA_EXCEEDED");
+      }
+
+      return sendClientError(res, geminiResponse.status, "API_ERROR");
     }
 
     const candidate = data.candidates?.[0];
@@ -166,10 +172,7 @@ app.post("/api/ask", async (req, res) => {
         response: data
       });
 
-      return res.status(502).json({
-        error: "Gemini가 답변 텍스트를 반환하지 않았습니다.",
-        details: JSON.stringify(data, null, 2)
-      });
+      return sendClientError(res, 502, "API_ERROR");
     }
 
     const wasTruncated = candidate?.finishReason === "MAX_TOKENS";
@@ -189,10 +192,13 @@ app.post("/api/ask", async (req, res) => {
   } catch (error) {
     console.error("Server error while calling Gemini API:", error);
 
-    return res.status(500).json({
-      error: "서버에서 Gemini API를 호출하는 중 문제가 발생했습니다.",
-      details: error.stack || error.message || String(error)
-    });
+    const networkErrorCodes = new Set(["ENOTFOUND", "ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN"]);
+    const isNetworkError =
+      networkErrorCodes.has(error.code) ||
+      networkErrorCodes.has(error.cause?.code) ||
+      (error.name === "TypeError" && /fetch|network|failed/i.test(error.message || ""));
+
+    return sendClientError(res, isNetworkError ? 503 : 500, isNetworkError ? "NETWORK_ERROR" : "API_ERROR");
   }
 });
 

@@ -311,26 +311,40 @@ function renderAnswer(item, options = {}) {
   resultPanel.append(header, card, notice);
 }
 
-function renderError(message, details = "") {
+const USER_ERROR_MESSAGES = {
+  INVALID_REQUEST: "질문을 입력해주세요.",
+  MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
+  QUOTA_EXCEEDED: "현재 AI 이용량이 많아 잠시 후 다시 시도해주세요.",
+  NETWORK_ERROR: "인터넷 연결을 확인해주세요.",
+  API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다."
+};
+
+function getFriendlyErrorMessage(errorCode, fallbackMessage) {
+  return USER_ERROR_MESSAGES[errorCode] || fallbackMessage || USER_ERROR_MESSAGES.API_ERROR;
+}
+
+function renderError(message) {
   resultPanel.innerHTML = "";
 
   const errorBox = document.createElement("div");
   errorBox.className = "error-box";
 
+  const icon = document.createElement("span");
+  icon.className = "error-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "!";
+
+  const content = document.createElement("div");
+  content.className = "error-content";
+
   const title = document.createElement("strong");
-  title.textContent = "오류가 발생했습니다";
+  title.textContent = "잠시 문제가 생겼어요";
 
   const summary = document.createElement("p");
   summary.textContent = message;
 
-  errorBox.append(title, summary);
-
-  if (details) {
-    const detailBlock = document.createElement("pre");
-    detailBlock.className = "error-details";
-    detailBlock.textContent = details;
-    errorBox.append(detailBlock);
-  }
+  content.append(title, summary);
+  errorBox.append(icon, content);
 
   resultPanel.append(errorBox);
 }
@@ -476,12 +490,28 @@ async function askQuestion(question) {
     try {
       data = rawBody ? JSON.parse(rawBody) : {};
     } catch (parseError) {
-      throw new Error(`서버 응답을 해석하지 못했습니다.\n\n원본 응답:\n${rawBody}`);
+      console.error("Failed to parse server response:", {
+        rawBody,
+        parseError
+      });
+
+      throw {
+        userMessage: USER_ERROR_MESSAGES.API_ERROR,
+        cause: parseError
+      };
     }
 
     if (!response.ok) {
-      const details = data.details ? `\n\n상세 정보:\n${data.details}` : "";
-      throw new Error(`${data.error || "답변을 가져오지 못했습니다."}${details}`);
+      console.error("Server returned an AI error:", {
+        status: response.status,
+        response: data
+      });
+
+      throw {
+        errorCode: data.errorCode,
+        userMessage: getFriendlyErrorMessage(data.errorCode, data.error),
+        serverResponse: data
+      };
     }
 
     const item = {
@@ -500,7 +530,12 @@ async function askQuestion(question) {
     });
   } catch (error) {
     console.error("Failed to ask Gemini:", error);
-    renderError(error.message || "잠시 후 다시 시도해주세요.", error.stack || "");
+
+    if (error instanceof TypeError) {
+      renderError(USER_ERROR_MESSAGES.NETWORK_ERROR);
+    } else {
+      renderError(error.userMessage || USER_ERROR_MESSAGES.API_ERROR);
+    }
   } finally {
     searchButton.disabled = false;
     searchButton.textContent = "질문하기";
