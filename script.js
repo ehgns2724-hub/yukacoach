@@ -1,7 +1,10 @@
 const STORAGE_KEYS = {
   profile: "babyCoach.profile",
   history: "babyCoach.history",
-  favorites: "babyCoach.favorites"
+  favorites: "babyCoach.favorites",
+  growth: "babyCoach.growth",
+  vaccinations: "babyCoach.vaccinations",
+  diary: "babyCoach.diary"
 };
 
 const LEGACY_KEYS = {
@@ -41,6 +44,27 @@ const loginButton = document.querySelector("#loginButton");
 const logoutButton = document.querySelector("#logoutButton");
 const authStatus = document.querySelector("#authStatus");
 const toast = document.querySelector("#toast");
+const featureTabs = document.querySelectorAll("[data-view-target]");
+const featureViews = document.querySelectorAll("[data-view]");
+
+const growthForm = document.querySelector("#growthForm");
+const growthDateInput = document.querySelector("#growthDate");
+const growthHeightInput = document.querySelector("#growthHeight");
+const growthWeightInput = document.querySelector("#growthWeight");
+const growthMemoInput = document.querySelector("#growthMemo");
+const growthList = document.querySelector("#growthList");
+const growthChart = document.querySelector("#growthChart");
+
+const vaccineList = document.querySelector("#vaccineList");
+
+const diaryForm = document.querySelector("#diaryForm");
+const diaryDateInput = document.querySelector("#diaryDate");
+const diarySleepInput = document.querySelector("#diarySleep");
+const diaryFeedingInput = document.querySelector("#diaryFeeding");
+const diaryDiapersInput = document.querySelector("#diaryDiapers");
+const diaryMoodInput = document.querySelector("#diaryMood");
+const diaryMemoInput = document.querySelector("#diaryMemo");
+const diaryList = document.querySelector("#diaryList");
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -59,6 +83,19 @@ let requestedLogout = false;
 const FIRESTORE_TIMEOUT_MS = 8000;
 const DAILY_TEXT_LIMIT = 10;
 const DAILY_IMAGE_LIMIT = 2;
+const VACCINE_DEFAULTS = [
+  ["BCG", "생후 4주 이내"],
+  ["B형간염", "출생 직후, 1개월, 6개월"],
+  ["DTaP", "2, 4, 6개월 및 추가 접종"],
+  ["IPV", "2, 4, 6개월 및 추가 접종"],
+  ["Hib", "2, 4, 6개월 및 추가 접종"],
+  ["폐렴구균", "2, 4, 6개월 및 추가 접종"],
+  ["로타바이러스", "2, 4개월 또는 2, 4, 6개월"],
+  ["MMR", "12~15개월, 4~6세"],
+  ["수두", "12~15개월"],
+  ["일본뇌염", "12개월 이후"],
+  ["인플루엔자", "매년 접종 권장"]
+].map(([name, timing]) => ({ id: name, name, timing, done: false, memo: "" }));
 
 function migrateLegacyStorage() {
   Object.keys(STORAGE_KEYS).forEach((name) => {
@@ -126,6 +163,34 @@ function setFavorites(items) {
   writeJson(STORAGE_KEYS.favorites, items);
 }
 
+function getGrowthRecords() {
+  return readJson(STORAGE_KEYS.growth, []);
+}
+
+function setGrowthRecords(items) {
+  writeJson(STORAGE_KEYS.growth, items);
+}
+
+function getVaccinations() {
+  const saved = readJson(STORAGE_KEYS.vaccinations, []);
+  return VACCINE_DEFAULTS.map((item) => ({
+    ...item,
+    ...(saved.find((savedItem) => savedItem.id === item.id) || {})
+  }));
+}
+
+function setVaccinations(items) {
+  writeJson(STORAGE_KEYS.vaccinations, items);
+}
+
+function getDiaryEntries() {
+  return readJson(STORAGE_KEYS.diary, []);
+}
+
+function setDiaryEntries(items) {
+  writeJson(STORAGE_KEYS.diary, items);
+}
+
 function getCloudDocRef() {
   if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
     return null;
@@ -168,6 +233,26 @@ function getHistoryDocRef(id) {
 
 function getHistoryCollectionPath() {
   return firebaseState.user ? `users/${firebaseState.user.uid}/history` : "";
+}
+
+function getUserCollectionRef(name) {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.collection(firebaseState.db, "users", firebaseState.user.uid, name);
+}
+
+function getUserDocRef(collectionName, id) {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.doc(firebaseState.db, "users", firebaseState.user.uid, collectionName, id);
+}
+
+function getUserCollectionPath(name) {
+  return firebaseState.user ? `users/${firebaseState.user.uid}/${name}` : "";
 }
 
 function getUsageDocRef(dateKey = getTodayKey()) {
@@ -425,6 +510,93 @@ async function migrateLocalHistoryToCloud(localHistory) {
   }
 }
 
+async function saveBetaItem(collectionName, item) {
+  if (!firebaseState.user || !firebaseState.cloudAvailable) {
+    return;
+  }
+
+  const docRef = getUserDocRef(collectionName, item.id);
+  const path = `${getUserCollectionPath(collectionName)}/${item.id}`;
+  const payload = collectionName === "vaccinations" && !item.date
+    ? { ...item, date: item.id }
+    : item;
+
+  if (!docRef) {
+    return;
+  }
+
+  console.log(`Firestore ${collectionName} setDoc start:`, { path, item: payload });
+
+  try {
+    await withTimeout(firebaseState.modules.setDoc(docRef, payload, { merge: true }), `Firestore ${collectionName} setDoc`);
+    console.log(`Firestore ${collectionName} setDoc success:`, { path });
+  } catch (error) {
+    console.error(`Firestore ${collectionName} setDoc failed:`, { path, error });
+    showToast("클라우드 저장 실패 - 로컬에 저장했어요");
+  }
+}
+
+async function deleteBetaItem(collectionName, id) {
+  if (!firebaseState.user || !firebaseState.cloudAvailable) {
+    return;
+  }
+
+  const docRef = getUserDocRef(collectionName, id);
+  const path = `${getUserCollectionPath(collectionName)}/${id}`;
+
+  if (!docRef) {
+    return;
+  }
+
+  console.log(`Firestore ${collectionName} deleteDoc start:`, { path });
+
+  try {
+    await withTimeout(firebaseState.modules.deleteDoc(docRef), `Firestore ${collectionName} deleteDoc`);
+    console.log(`Firestore ${collectionName} deleteDoc success:`, { path });
+  } catch (error) {
+    console.error(`Firestore ${collectionName} deleteDoc failed:`, { path, error });
+    showToast("클라우드 삭제 실패 - 로컬에서만 삭제했어요");
+  }
+}
+
+async function loadBetaCollection(collectionName, fallbackItems = []) {
+  const collectionRef = getUserCollectionRef(collectionName);
+
+  if (!collectionRef) {
+    return fallbackItems;
+  }
+
+  const path = getUserCollectionPath(collectionName);
+  console.log(`Firestore ${collectionName} query start:`, { path });
+
+  try {
+    const queryRef = firebaseState.modules.query(
+      collectionRef,
+      firebaseState.modules.orderBy("date", "desc"),
+      firebaseState.modules.limit(30)
+    );
+    const snapshot = await withTimeout(firebaseState.modules.getDocs(queryRef), `Firestore ${collectionName} getDocs`);
+    const items = snapshot.docs.map((docSnapshot) => ({
+      id: docSnapshot.id,
+      ...docSnapshot.data()
+    }));
+    console.log(`Firestore ${collectionName} query success:`, { path, count: items.length });
+    return items.length ? items : fallbackItems;
+  } catch (error) {
+    console.error(`Firestore ${collectionName} query failed:`, { path, error });
+    showToast("클라우드 데이터를 불러오지 못해 로컬 데이터를 표시합니다");
+    return fallbackItems;
+  }
+}
+
+async function migrateBetaCollection(collectionName, items) {
+  if (!firebaseState.user || !firebaseState.cloudAvailable || !items.length) {
+    return;
+  }
+
+  await Promise.all(items.map((item) => saveBetaItem(collectionName, item)));
+}
+
 async function reserveDailyUsage(hasPhoto) {
   if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
     return { allowed: true, mode: "local" };
@@ -582,6 +754,7 @@ async function syncCloudToLocal() {
 
     authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
     firebaseState.cloudAvailable = true;
+    await loadBetaFeaturesFromCloud();
     console.log("Firestore sync complete:", { path: docPath });
   } catch (error) {
     console.error("Firestore sync failed:", {
@@ -664,6 +837,7 @@ async function initializeFirebase() {
         getDoc: firestoreModule.getDoc,
         getDocs: firestoreModule.getDocs,
         setDoc: firestoreModule.setDoc,
+        deleteDoc: firestoreModule.deleteDoc,
         runTransaction: firestoreModule.runTransaction,
         query: firestoreModule.query,
         orderBy: firestoreModule.orderBy,
@@ -1061,6 +1235,159 @@ function renderFavorites() {
   });
 }
 
+function sortByDateDesc(items) {
+  return [...items].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderGrowth() {
+  const records = sortByDateDesc(getGrowthRecords());
+  growthList.innerHTML = "";
+
+  if (!records.length) {
+    growthList.append(createEmptyMessage("성장 기록을 추가해보세요."));
+    growthChart.innerHTML = "<p class=\"empty-list\">성장 기록을 추가해보세요.</p>";
+    return;
+  }
+
+  records.slice(0, 8).forEach((record) => {
+    const item = document.createElement("article");
+    item.className = "saved-item";
+    item.innerHTML = `
+      <strong>${escapeHtml(record.date)}</strong>
+      <p class="saved-meta">키 ${escapeHtml(record.height)}cm · 몸무게 ${escapeHtml(record.weight)}kg</p>
+      <p class="saved-preview">${escapeHtml(record.memo || "메모 없음")}</p>
+    `;
+    growthList.append(item);
+  });
+
+  renderGrowthChart(records.slice().reverse());
+}
+
+function renderGrowthChart(records) {
+  const width = 640;
+  const height = 240;
+  const padding = 34;
+  const recent = records.slice(-8);
+
+  if (recent.length < 2) {
+    growthChart.innerHTML = "<p class=\"empty-list\">그래프를 보려면 성장 기록을 2개 이상 추가해주세요.</p>";
+    return;
+  }
+
+  const heights = recent.map((item) => Number(item.height));
+  const weights = recent.map((item) => Number(item.weight));
+  const minHeight = Math.min(...heights);
+  const maxHeight = Math.max(...heights);
+  const minWeight = Math.min(...weights);
+  const maxWeight = Math.max(...weights);
+  const xFor = (index) => padding + (index * (width - padding * 2)) / (recent.length - 1);
+  const yFor = (value, min, max) => height - padding - ((value - min) * (height - padding * 2)) / Math.max(max - min, 1);
+  const heightPoints = recent.map((item, index) => `${xFor(index)},${yFor(Number(item.height), minHeight, maxHeight)}`).join(" ");
+  const weightPoints = recent.map((item, index) => `${xFor(index)},${yFor(Number(item.weight), minWeight, maxWeight)}`).join(" ");
+
+  growthChart.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="키와 몸무게 변화 그래프">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="24" fill="#fbfdff"></rect>
+      <polyline points="${heightPoints}" fill="none" stroke="#5B8DEF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      <polyline points="${weightPoints}" fill="none" stroke="#FFB86B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    </svg>
+    <div class="chart-legend"><span class="height-dot"></span>키 <span class="weight-dot"></span>몸무게</div>
+  `;
+}
+
+function renderVaccinations() {
+  const items = getVaccinations();
+  vaccineList.innerHTML = "";
+
+  items.forEach((item) => {
+    const row = document.createElement("article");
+    row.className = "vaccine-item";
+    row.innerHTML = `
+      <label>
+        <input type="checkbox" ${item.done ? "checked" : ""} data-vaccine-check="${item.id}">
+        <span>
+          <strong>${escapeHtml(item.name)}</strong>
+          <em>${escapeHtml(item.timing)}</em>
+        </span>
+      </label>
+      <input type="text" value="${escapeHtml(item.memo || "")}" placeholder="메모" data-vaccine-memo="${item.id}">
+    `;
+    vaccineList.append(row);
+  });
+}
+
+function saveVaccinationsFromUI() {
+  const nextItems = getVaccinations().map((item) => {
+    const checkbox = vaccineList.querySelector(`[data-vaccine-check="${CSS.escape(item.id)}"]`);
+    const memo = vaccineList.querySelector(`[data-vaccine-memo="${CSS.escape(item.id)}"]`);
+    return {
+      ...item,
+      done: Boolean(checkbox?.checked),
+      memo: memo?.value.trim() || "",
+      date: item.id
+    };
+  });
+
+  setVaccinations(nextItems);
+  nextItems.forEach((item) => saveBetaItem("vaccinations", item));
+  showToast("예방접종 체크리스트 저장 완료");
+}
+
+function renderDiary() {
+  const entries = sortByDateDesc(getDiaryEntries());
+  diaryList.innerHTML = "";
+
+  if (!entries.length) {
+    diaryList.append(createEmptyMessage("아직 작성한 육아일기가 없습니다."));
+    return;
+  }
+
+  entries.slice(0, 10).forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "saved-item";
+    item.innerHTML = `
+      <button class="saved-title" type="button">${escapeHtml(entry.date)} · ${escapeHtml(entry.mood || "기록")}</button>
+      <p class="saved-meta">수면 ${escapeHtml(entry.sleep || "-")} · 기저귀 ${escapeHtml(entry.diapers || 0)}회</p>
+      <p class="saved-preview">${escapeHtml(entry.feeding || "")} ${escapeHtml(entry.memo || "")}</p>
+      <button class="text-button danger-text" type="button" data-diary-delete="${entry.id}">삭제</button>
+    `;
+    diaryList.append(item);
+  });
+}
+
+function setDefaultDates() {
+  const today = getTodayKey();
+  growthDateInput.value = today;
+  diaryDateInput.value = today;
+}
+
+async function loadBetaFeaturesFromCloud() {
+  if (!firebaseState.user || !firebaseState.cloudAvailable) {
+    return;
+  }
+
+  await migrateBetaCollection("growth", getGrowthRecords());
+  await migrateBetaCollection("vaccinations", getVaccinations());
+  await migrateBetaCollection("diary", getDiaryEntries());
+
+  setGrowthRecords(await loadBetaCollection("growth", getGrowthRecords()));
+  setVaccinations(await loadBetaCollection("vaccinations", getVaccinations()));
+  setDiaryEntries(await loadBetaCollection("diary", getDiaryEntries()));
+
+  renderGrowth();
+  renderVaccinations();
+  renderDiary();
+}
+
 function addHistory(item) {
   const nextHistory = [item, ...getHistory()].slice(0, 40);
   setHistory(nextHistory);
@@ -1313,6 +1640,15 @@ searchForm.addEventListener("submit", (event) => {
 photoInput.addEventListener("change", handlePhotoChange);
 removePhotoButton.addEventListener("click", clearSelectedPhoto);
 
+featureTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const target = tab.dataset.viewTarget;
+
+    featureTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+    featureViews.forEach((view) => view.classList.toggle("is-active", view.dataset.view === target));
+  });
+});
+
 quickQuestionButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const question = button.dataset.question;
@@ -1331,6 +1667,68 @@ clearFavoritesButton.addEventListener("click", () => {
   setFavorites([]);
   renderFavorites();
   saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear favorites in Firestore:", error));
+});
+
+growthForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const record = {
+    id: createId(),
+    date: growthDateInput.value,
+    height: growthHeightInput.value,
+    weight: growthWeightInput.value,
+    memo: growthMemoInput.value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  const nextRecords = sortByDateDesc([record, ...getGrowthRecords()]);
+  setGrowthRecords(nextRecords);
+  renderGrowth();
+  saveBetaItem("growth", record);
+  showToast("성장 기록 저장 완료");
+  growthForm.reset();
+  growthDateInput.value = getTodayKey();
+});
+
+vaccineList.addEventListener("change", saveVaccinationsFromUI);
+vaccineList.addEventListener("input", (event) => {
+  if (event.target.matches("[data-vaccine-memo]")) {
+    window.clearTimeout(vaccineList.saveTimeoutId);
+    vaccineList.saveTimeoutId = window.setTimeout(saveVaccinationsFromUI, 500);
+  }
+});
+
+diaryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const entry = {
+    id: createId(),
+    date: diaryDateInput.value,
+    sleep: diarySleepInput.value.trim(),
+    feeding: diaryFeedingInput.value.trim(),
+    diapers: diaryDiapersInput.value || "0",
+    mood: diaryMoodInput.value.trim(),
+    memo: diaryMemoInput.value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  const nextEntries = sortByDateDesc([entry, ...getDiaryEntries()]);
+  setDiaryEntries(nextEntries);
+  renderDiary();
+  saveBetaItem("diary", entry);
+  showToast("육아일기 저장 완료");
+  diaryForm.reset();
+  diaryDateInput.value = getTodayKey();
+});
+
+diaryList.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("[data-diary-delete]");
+
+  if (!deleteButton) {
+    return;
+  }
+
+  const nextEntries = getDiaryEntries().filter((entry) => entry.id !== deleteButton.dataset.diaryDelete);
+  setDiaryEntries(nextEntries);
+  renderDiary();
+  deleteBetaItem("diary", deleteButton.dataset.diaryDelete);
+  showToast("육아일기를 삭제했어요");
 });
 
 loginButton.addEventListener("click", async () => {
@@ -1368,5 +1766,9 @@ migrateLegacyStorage();
 loadProfileForm();
 renderHistory();
 renderFavorites();
+setDefaultDates();
+renderGrowth();
+renderVaccinations();
+renderDiary();
 observeRevealElements();
 initializeFirebase();

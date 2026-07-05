@@ -405,6 +405,58 @@ p {
   margin-bottom: 22px;
 }
 
+.feature-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 8px;
+  border: 1px solid rgba(230, 235, 242, 0.95);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--shadow-soft);
+  overflow-x: auto;
+}
+
+.feature-tab {
+  min-height: 46px;
+  flex: 1 0 auto;
+  padding: 0 18px;
+  border-radius: 18px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.feature-tab:hover,
+.feature-tab.is-active {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 12px 24px rgba(91, 141, 239, 0.2);
+}
+
+.feature-view {
+  display: none;
+}
+
+.feature-view.is-active {
+  display: block;
+}
+
+.feature-workspace {
+  display: none;
+  gap: 22px;
+}
+
+.feature-workspace.is-active {
+  display: grid;
+}
+
+.feature-form {
+  display: grid;
+  gap: 16px;
+}
+
 .section-heading {
   display: flex;
   gap: 14px;
@@ -963,6 +1015,82 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.growth-chart {
+  min-height: 230px;
+}
+
+.growth-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.height-dot,
+.weight-dot {
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  border-radius: 50%;
+}
+
+.height-dot {
+  background: var(--primary);
+}
+
+.weight-dot {
+  background: var(--accent);
+}
+
+.vaccine-list {
+  display: grid;
+  gap: 12px;
+}
+
+.vaccine-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.65fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fbfdff;
+}
+
+.vaccine-item label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vaccine-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+}
+
+.vaccine-item strong,
+.vaccine-item em {
+  display: block;
+}
+
+.vaccine-item em {
+  margin-top: 3px;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 13px;
+}
+
 .text-button {
   padding: 0;
   color: var(--primary-dark);
@@ -1198,6 +1326,18 @@ textarea:focus {
   .profile-grid {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .feature-tabs {
+    margin-bottom: 16px;
+  }
+
+  .feature-tab {
+    flex: 0 0 auto;
+  }
+
+  .vaccine-item {
+    grid-template-columns: 1fr;
   }
 
   .photo-upload-area {

@@ -61,6 +61,14 @@
       </div>
     </section>
 
+    <nav class="feature-tabs reveal" aria-label="육아코치 기능">
+      <button class="feature-tab is-active" type="button" data-view-target="ai">AI 상담</button>
+      <button class="feature-tab" type="button" data-view-target="growth">성장 기록</button>
+      <button class="feature-tab" type="button" data-view-target="vaccines">예방접종</button>
+      <button class="feature-tab" type="button" data-view-target="diary">육아일기</button>
+    </nav>
+
+    <div class="feature-view is-active" data-view="ai">
     <section class="question-panel panel reveal" id="question-panel" aria-labelledby="question-title">
       <div class="section-heading">
         <span class="section-icon">AI</span>
@@ -216,6 +224,120 @@
           </div>
           <div class="timeline-list" id="historyList"></div>
         </section>
+      </section>
+    </section>
+    </div>
+
+    <section class="feature-view feature-workspace" data-view="growth" aria-labelledby="growth-title">
+      <section class="panel reveal">
+        <div class="section-heading">
+          <span class="section-icon">cm</span>
+          <div>
+            <h2 id="growth-title">성장 기록</h2>
+            <p>키와 몸무게 변화를 간단히 기록하고 흐름을 확인해보세요.</p>
+          </div>
+        </div>
+
+        <form class="feature-form" id="growthForm">
+          <div class="profile-grid">
+            <div class="field-group">
+              <label for="growthDate">날짜</label>
+              <input id="growthDate" type="date" required>
+            </div>
+            <div class="field-group">
+              <label for="growthHeight">키(cm)</label>
+              <input id="growthHeight" type="number" min="0" step="0.1" placeholder="예: 72.5" required>
+            </div>
+            <div class="field-group">
+              <label for="growthWeight">몸무게(kg)</label>
+              <input id="growthWeight" type="number" min="0" step="0.1" placeholder="예: 9.2" required>
+            </div>
+            <div class="field-group">
+              <label for="growthMemo">메모</label>
+              <input id="growthMemo" type="text" placeholder="예: 이유식 양이 늘었어요">
+            </div>
+          </div>
+          <button class="primary-button" type="submit">성장 기록 저장</button>
+        </form>
+      </section>
+
+      <section class="panel reveal">
+        <div class="panel-header">
+          <h2>성장 그래프</h2>
+        </div>
+        <div class="growth-chart" id="growthChart"></div>
+      </section>
+
+      <section class="panel reveal">
+        <div class="panel-header">
+          <h2>최근 성장 기록</h2>
+        </div>
+        <div class="saved-list" id="growthList"></div>
+      </section>
+    </section>
+
+    <section class="feature-view feature-workspace" data-view="vaccines" aria-labelledby="vaccines-title">
+      <section class="panel reveal">
+        <div class="section-heading">
+          <span class="section-icon">✓</span>
+          <div>
+            <h2 id="vaccines-title">예방접종 체크리스트</h2>
+            <p>베타 테스트용 기본 체크리스트입니다.</p>
+          </div>
+        </div>
+        <p class="notice">예방접종 일정은 참고용이며, 정확한 일정은 예방접종도우미 또는 의료기관에서 확인하세요.</p>
+      </section>
+      <section class="panel reveal">
+        <div class="vaccine-list" id="vaccineList"></div>
+      </section>
+    </section>
+
+    <section class="feature-view feature-workspace" data-view="diary" aria-labelledby="diary-title">
+      <section class="panel reveal">
+        <div class="section-heading">
+          <span class="section-icon">日</span>
+          <div>
+            <h2 id="diary-title">오늘의 육아일기</h2>
+            <p>수면, 수유, 기저귀, 컨디션을 짧게 남겨보세요.</p>
+          </div>
+        </div>
+
+        <form class="feature-form" id="diaryForm">
+          <div class="profile-grid">
+            <div class="field-group">
+              <label for="diaryDate">날짜</label>
+              <input id="diaryDate" type="date" required>
+            </div>
+            <div class="field-group">
+              <label for="diarySleep">수면 시간</label>
+              <input id="diarySleep" type="text" placeholder="예: 밤잠 9시간, 낮잠 2회">
+            </div>
+            <div class="field-group">
+              <label for="diaryFeeding">수유/이유식 메모</label>
+              <input id="diaryFeeding" type="text" placeholder="예: 이유식 2회, 분유 600ml">
+            </div>
+            <div class="field-group">
+              <label for="diaryDiapers">기저귀 횟수</label>
+              <input id="diaryDiapers" type="number" min="0" step="1" placeholder="예: 6">
+            </div>
+            <div class="field-group">
+              <label for="diaryMood">기분/컨디션</label>
+              <input id="diaryMood" type="text" placeholder="예: 잘 웃고 컨디션 좋음">
+            </div>
+            <div class="field-group">
+              <label for="diaryMemo">자유 메모</label>
+              <input id="diaryMemo" type="text" placeholder="예: 첫 박수를 쳤어요">
+            </div>
+          </div>
+          <button class="primary-button" type="submit">육아일기 저장</button>
+        </form>
+      </section>
+
+      <section class="panel reveal">
+        <div class="panel-header">
+          <h2>최근 일기</h2>
+        </div>
+        <div class="saved-list" id="diaryList"></div>
       </section>
     </section>
   </main>
