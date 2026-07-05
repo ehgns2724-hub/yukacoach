@@ -40,6 +40,7 @@ const clearFavoritesButton = document.querySelector("#clearFavoritesButton");
 const loginButton = document.querySelector("#loginButton");
 const logoutButton = document.querySelector("#logoutButton");
 const authStatus = document.querySelector("#authStatus");
+const toast = document.querySelector("#toast");
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -132,6 +133,30 @@ function getCloudDocRef() {
 
 function getCloudDocPath() {
   return firebaseState.user ? `users/${firebaseState.user.uid}` : "";
+}
+
+function getProfileDocRef() {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.doc(firebaseState.db, "users", firebaseState.user.uid, "profile", "profile");
+}
+
+function getProfileDocPath() {
+  return firebaseState.user ? `users/${firebaseState.user.uid}/profile/profile` : "";
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.hidden = false;
+  toast.classList.add("is-visible");
+
+  window.clearTimeout(showToast.timeoutId);
+  showToast.timeoutId = window.setTimeout(() => {
+    toast.classList.remove("is-visible");
+    toast.hidden = true;
+  }, 2600);
 }
 
 function withTimeout(promise, label, timeoutMs = FIRESTORE_TIMEOUT_MS) {
@@ -236,6 +261,71 @@ async function saveSnapshotToCloud(snapshot = getLocalSnapshot()) {
   }
 }
 
+async function loadProfileFromCloud() {
+  const profileDoc = getProfileDocRef();
+
+  if (!profileDoc) {
+    return null;
+  }
+
+  const path = getProfileDocPath();
+  console.log("Firestore profile getDoc start:", { path });
+
+  try {
+    const docSnapshot = await withTimeout(firebaseState.modules.getDoc(profileDoc), "Firestore profile getDoc");
+    console.log("Firestore profile getDoc success:", {
+      path,
+      exists: docSnapshot.exists()
+    });
+
+    return docSnapshot.exists() ? docSnapshot.data() : null;
+  } catch (error) {
+    console.error("Firestore profile getDoc failed:", {
+      path,
+      error
+    });
+    throw error;
+  } finally {
+    console.log("Firestore profile getDoc finished:", { path });
+  }
+}
+
+async function saveProfileToCloud(profile, options = {}) {
+  const profileDoc = getProfileDocRef();
+
+  if (!profileDoc || !firebaseState.cloudAvailable) {
+    return;
+  }
+
+  const path = getProfileDocPath();
+  const payload = {
+    ...profile,
+    updatedAt: new Date().toISOString()
+  };
+
+  console.log("Firestore profile setDoc start:", { path, payload });
+
+  try {
+    await withTimeout(firebaseState.modules.setDoc(profileDoc, payload, { merge: true }), "Firestore profile setDoc");
+    console.log("Firestore profile setDoc success:", { path });
+    authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
+
+    if (options.showToast) {
+      showToast("프로필 저장 완료");
+    }
+  } catch (error) {
+    console.error("Firestore profile setDoc failed:", {
+      path,
+      error
+    });
+    firebaseState.cloudAvailable = false;
+    authStatus.textContent = "클라우드 저장 실패 - 로컬 저장으로 전환";
+    renderError("프로필을 Firestore에 저장하지 못했습니다. 로컬 저장은 유지됩니다.", error.code || "firestore/profile-save-failed");
+  } finally {
+    console.log("Firestore profile setDoc finished:", { path });
+  }
+}
+
 function handleCloudSaveError(context, error) {
   console.error(context, error);
   firebaseState.cloudAvailable = false;
@@ -268,14 +358,18 @@ async function syncCloudToLocal() {
     });
 
     const cloudSnapshot = cloudDoc.exists() ? cloudDoc.data() : {};
+    const cloudProfile = await loadProfileFromCloud();
     const mergedSnapshot = {
-      profile: hasProfileData(localSnapshot.profile) ? localSnapshot.profile : (cloudSnapshot.profile || localSnapshot.profile),
+      profile: cloudProfile || (hasProfileData(localSnapshot.profile) ? localSnapshot.profile : (cloudSnapshot.profile || localSnapshot.profile)),
       history: mergeItems(localSnapshot.history, cloudSnapshot.history || []),
       favorites: mergeItems(localSnapshot.favorites, cloudSnapshot.favorites || []),
       updatedAt: new Date().toISOString()
     };
 
     await saveSnapshotToCloud(mergedSnapshot);
+    if (!cloudProfile) {
+      await saveProfileToCloud(mergedSnapshot.profile);
+    }
     applySnapshot(mergedSnapshot);
 
     authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
@@ -304,6 +398,8 @@ function updateAuthUI(user) {
     return;
   }
 
+  localStorage.removeItem(STORAGE_KEYS.profile);
+  loadProfileForm();
   authStatus.textContent = firebaseState.enabled
     ? "로그인 전에는 이 기기에만 저장됩니다."
     : "Firebase 설정 후 구글 로그인을 사용할 수 있습니다.";
@@ -950,9 +1046,11 @@ function observeRevealElements() {
 
 profileForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  setProfile(collectProfileForm());
+  const profile = collectProfileForm();
+  setProfile(profile);
   loadProfileForm();
-  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save profile to Firestore:", error));
+  saveProfileToCloud(profile, { showToast: true }).catch((error) => handleCloudSaveError("Failed to save profile document to Firestore:", error));
+  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save profile snapshot to Firestore:", error));
 });
 
 clearProfileButton.addEventListener("click", () => {
