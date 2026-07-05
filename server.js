@@ -5,7 +5,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || process.env.MODEL_NAME || "gemini-2.5-flash-lite";
 const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL;
 const PUBLIC_DIR = __dirname;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -46,7 +46,7 @@ function getFirebaseConfigDiagnostics() {
 const CLIENT_ERROR_MESSAGES = {
   INVALID_REQUEST: "질문을 입력해주세요.",
   MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
-  QUOTA_EXCEEDED: "현재 AI 이용량이 많아 잠시 후 다시 시도해주세요.",
+  QUOTA_EXCEEDED: "현재 AI 사용량이 많아 답변이 지연되고 있어요. 잠시 후 다시 시도해주세요.",
   NETWORK_ERROR: "인터넷 연결을 확인해주세요.",
   API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다.",
   INVALID_IMAGE: "jpg, jpeg, png, webp 형식의 사진만 업로드할 수 있습니다."
@@ -268,7 +268,12 @@ app.post("/api/ask", async (req, res) => {
 
       console.error("Gemini API request failed:", details);
 
-      if (geminiResponse.status === 429) {
+      if (
+        geminiResponse.status === 429 ||
+        data.error?.status === "RESOURCE_EXHAUSTED" ||
+        data.error?.message?.includes("RESOURCE_EXHAUSTED") ||
+        data.error?.message?.includes("QUOTA_EXCEEDED")
+      ) {
         return sendClientError(res, 429, "QUOTA_EXCEEDED");
       }
 

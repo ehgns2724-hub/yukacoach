@@ -57,6 +57,8 @@ let firebaseState = {
 let requestedLogout = false;
 
 const FIRESTORE_TIMEOUT_MS = 8000;
+const DAILY_TEXT_LIMIT = 10;
+const DAILY_IMAGE_LIMIT = 2;
 
 function migrateLegacyStorage() {
   Object.keys(STORAGE_KEYS).forEach((name) => {
@@ -166,6 +168,26 @@ function getHistoryDocRef(id) {
 
 function getHistoryCollectionPath() {
   return firebaseState.user ? `users/${firebaseState.user.uid}/history` : "";
+}
+
+function getUsageDocRef(dateKey = getTodayKey()) {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return null;
+  }
+
+  return firebaseState.modules.doc(firebaseState.db, "users", firebaseState.user.uid, "usage", dateKey);
+}
+
+function getUsageDocPath(dateKey = getTodayKey()) {
+  return firebaseState.user ? `users/${firebaseState.user.uid}/usage/${dateKey}` : "";
+}
+
+function getTodayKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function showToast(message) {
@@ -403,6 +425,77 @@ async function migrateLocalHistoryToCloud(localHistory) {
   }
 }
 
+async function reserveDailyUsage(hasPhoto) {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return { allowed: true, mode: "local" };
+  }
+
+  const dateKey = getTodayKey();
+  const usageDoc = getUsageDocRef(dateKey);
+  const path = getUsageDocPath(dateKey);
+  const field = hasPhoto ? "imageCount" : "textCount";
+  const limit = hasPhoto ? DAILY_IMAGE_LIMIT : DAILY_TEXT_LIMIT;
+
+  console.log("Firestore usage check start:", {
+    path,
+    field,
+    limit
+  });
+
+  try {
+    const result = await withTimeout(firebaseState.modules.runTransaction(firebaseState.db, async (transaction) => {
+      const snapshot = await transaction.get(usageDoc);
+      const currentData = snapshot.exists() ? snapshot.data() : {};
+      const currentCount = Number(currentData[field] || 0);
+
+      if (currentCount >= limit) {
+        return {
+          allowed: false,
+          errorCode: hasPhoto ? "DAILY_IMAGE_LIMIT" : "DAILY_TEXT_LIMIT",
+          currentCount,
+          limit
+        };
+      }
+
+      const nextData = {
+        date: dateKey,
+        textCount: Number(currentData.textCount || 0),
+        imageCount: Number(currentData.imageCount || 0),
+        updatedAt: new Date().toISOString()
+      };
+
+      nextData[field] = currentCount + 1;
+      transaction.set(usageDoc, nextData, { merge: true });
+
+      return {
+        allowed: true,
+        currentCount: currentCount + 1,
+        limit
+      };
+    }), "Firestore usage transaction");
+
+    console.log("Firestore usage check success:", {
+      path,
+      result
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Firestore usage check failed:", {
+      path,
+      error
+    });
+
+    return {
+      allowed: false,
+      errorCode: "USAGE_CHECK_FAILED",
+      error
+    };
+  } finally {
+    console.log("Firestore usage check finished:", { path });
+  }
+}
+
 async function saveProfileToCloud(profile, options = {}) {
   const profileDoc = getProfileDocRef();
 
@@ -571,6 +664,7 @@ async function initializeFirebase() {
         getDoc: firestoreModule.getDoc,
         getDocs: firestoreModule.getDocs,
         setDoc: firestoreModule.setDoc,
+        runTransaction: firestoreModule.runTransaction,
         query: firestoreModule.query,
         orderBy: firestoreModule.orderBy,
         limit: firestoreModule.limit
@@ -815,11 +909,14 @@ function renderAnswer(item, options = {}) {
 const USER_ERROR_MESSAGES = {
   INVALID_REQUEST: "질문을 입력해주세요.",
   MISSING_API_KEY: "AI 서버 설정이 아직 완료되지 않았습니다.",
-  QUOTA_EXCEEDED: "현재 AI 이용량이 많아 잠시 후 다시 시도해주세요.",
+  QUOTA_EXCEEDED: "현재 AI 사용량이 많아 답변이 지연되고 있어요. 잠시 후 다시 시도해주세요.",
   NETWORK_ERROR: "인터넷 연결을 확인해주세요.",
   API_ERROR: "AI 서버에 일시적인 문제가 발생했습니다.",
   INVALID_IMAGE: "jpg, jpeg, png, webp 형식의 사진만 업로드할 수 있습니다.",
-  IMAGE_TOO_LARGE: "사진 용량이 너무 큽니다. 5MB 이하의 사진을 선택해주세요."
+  IMAGE_TOO_LARGE: "사진 용량이 너무 큽니다. 5MB 이하의 사진을 선택해주세요.",
+  DAILY_TEXT_LIMIT: "오늘의 텍스트 질문 10회를 모두 사용했습니다. 내일 다시 이용해주세요.",
+  DAILY_IMAGE_LIMIT: "오늘의 사진 분석 2회를 모두 사용했습니다. 내일 다시 이용해주세요.",
+  USAGE_CHECK_FAILED: "사용량 확인 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
 };
 
 function getFriendlyErrorMessage(errorCode, fallbackMessage) {
@@ -1082,6 +1179,15 @@ async function askQuestion(question) {
   searchButton.textContent = hasPhoto ? "분석중..." : "상담 중";
 
   try {
+    const usageResult = await reserveDailyUsage(hasPhoto);
+
+    if (!usageResult.allowed) {
+      throw {
+        errorCode: usageResult.errorCode,
+        userMessage: USER_ERROR_MESSAGES[usageResult.errorCode] || USER_ERROR_MESSAGES.USAGE_CHECK_FAILED
+      };
+    }
+
     const response = await fetch("/api/ask", {
       method: "POST",
       headers: {
