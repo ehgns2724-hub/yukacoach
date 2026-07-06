@@ -35,8 +35,12 @@ function maskConfigValue(value) {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function hashEmail(value) {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = normalizeEmail(value);
 
   if (!normalized) {
     return "";
@@ -184,7 +188,25 @@ app.get("/api/firebase-config", (req, res) => {
   return res.json({
     enabled: true,
     config: FIREBASE_CONFIG,
-    adminEmailHash: hashEmail(ADMIN_EMAIL)
+    adminEmailHash: hashEmail(ADMIN_EMAIL),
+    hasAdminEmail: Boolean(normalizeEmail(ADMIN_EMAIL))
+  });
+});
+
+app.post("/api/admin-role", (req, res) => {
+  const userEmail = normalizeEmail(req.body?.email);
+  const adminEmail = normalizeEmail(ADMIN_EMAIL);
+  const isAdmin = Boolean(userEmail && adminEmail && userEmail === adminEmail);
+
+  console.info("Admin role check:", {
+    hasUserEmail: Boolean(userEmail),
+    hasAdminEmail: Boolean(adminEmail),
+    isAdmin
+  });
+
+  return res.json({
+    isAdmin,
+    role: isAdmin ? "admin" : "user"
   });
 });
 

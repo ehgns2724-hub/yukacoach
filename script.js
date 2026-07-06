@@ -325,15 +325,30 @@ async function hashEmail(email) {
 }
 
 async function resolveAdminState(user) {
-  if (!user?.email || !firebaseState.adminEmailHash) {
+  const email = normalizeEmail(user?.email);
+
+  if (!email) {
     return false;
   }
 
   try {
-    const emailHash = await hashEmail(user.email);
-    return Boolean(emailHash && emailHash === firebaseState.adminEmailHash);
+    const response = await fetch("/api/admin-role", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Admin role check failed:", data);
+      return false;
+    }
+
+    return Boolean(data.isAdmin);
   } catch (error) {
-    console.error("Admin email hash check failed:", error);
+    console.error("Admin role check failed:", error);
     return false;
   }
 }

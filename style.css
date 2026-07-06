@@ -267,6 +267,11 @@ p {
   font-weight: 800;
 }
 
+.auth-avatar[hidden],
+.admin-badge[hidden] {
+  display: none;
+}
+
 .google-button {
   min-height: 44px;
   padding: 0 15px;
