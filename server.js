@@ -7,6 +7,8 @@ const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || process.env.MODEL_NAME || "gemini-2.5-flash-lite";
 const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
 const PUBLIC_DIR = __dirname;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const FIREBASE_CONFIG = {
@@ -57,6 +59,90 @@ function sendClientError(res, status, errorCode) {
     errorCode,
     error: CLIENT_ERROR_MESSAGES[errorCode] || CLIENT_ERROR_MESSAGES.API_ERROR
   });
+}
+
+function isGeminiFallbackError(status, data = {}, message = "") {
+  const errorStatus = data.error?.status || "";
+  const errorMessage = data.error?.message || message || "";
+
+  return (
+    status === 429 ||
+    status === 503 ||
+    errorStatus === "RESOURCE_EXHAUSTED" ||
+    errorStatus === "UNAVAILABLE" ||
+    errorMessage.includes("RESOURCE_EXHAUSTED") ||
+    errorMessage.includes("QUOTA_EXCEEDED") ||
+    errorMessage.includes("quota") ||
+    errorMessage.includes("overloaded")
+  );
+}
+
+async function callGroqFallback(prompt) {
+  if (!GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not configured.");
+  }
+
+  console.warn("Falling back to Groq API:", { model: GROQ_MODEL });
+
+  const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [
+        {
+          role: "system",
+          content: "You are a careful Korean parenting coach. Answer in Korean and follow the user's safety instructions."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.4,
+      max_tokens: 1200
+    })
+  });
+
+  const rawBody = await groqResponse.text();
+  let data;
+
+  try {
+    data = rawBody ? JSON.parse(rawBody) : {};
+  } catch (parseError) {
+    console.error("Groq API returned a non-JSON response:", {
+      status: groqResponse.status,
+      statusText: groqResponse.statusText,
+      body: rawBody,
+      parseError
+    });
+    throw new Error("Groq API response parse failed.");
+  }
+
+  if (!groqResponse.ok) {
+    console.error("Groq API request failed:", {
+      status: groqResponse.status,
+      statusText: groqResponse.statusText,
+      error: data.error || data
+    });
+    throw new Error(data.error?.message || "Groq API request failed.");
+  }
+
+  const answer = data.choices?.[0]?.message?.content?.trim();
+
+  if (!answer) {
+    console.error("Groq response did not include answer text:", data);
+    throw new Error("Groq API returned empty answer.");
+  }
+
+  return {
+    answer,
+    finishReason: data.choices?.[0]?.finish_reason || "groq_fallback",
+    truncated: false
+  };
 }
 
 app.use(express.json({ limit: "12mb" }));
@@ -256,6 +342,26 @@ app.post("/api/ask", async (req, res) => {
         parseError
       });
 
+      if (isGeminiFallbackError(geminiResponse.status, {}, rawBody)) {
+        try {
+          const fallbackResult = await callGroqFallback(prompt);
+          let fallbackAnswer = fallbackResult.answer;
+
+          if (hasProfile && !fallbackAnswer.includes(PROFILE_USED_NOTE)) {
+            fallbackAnswer = `${fallbackAnswer}\n\n${PROFILE_USED_NOTE}`;
+          }
+
+          return res.json({
+            answer: fallbackAnswer,
+            finishReason: fallbackResult.finishReason,
+            truncated: fallbackResult.truncated,
+            provider: "groq"
+          });
+        } catch (fallbackError) {
+          console.error("Groq fallback failed after Gemini parse error:", fallbackError);
+        }
+      }
+
       return sendClientError(res, 502, "API_ERROR");
     }
 
@@ -268,13 +374,26 @@ app.post("/api/ask", async (req, res) => {
 
       console.error("Gemini API request failed:", details);
 
-      if (
-        geminiResponse.status === 429 ||
-        data.error?.status === "RESOURCE_EXHAUSTED" ||
-        data.error?.message?.includes("RESOURCE_EXHAUSTED") ||
-        data.error?.message?.includes("QUOTA_EXCEEDED")
-      ) {
-        return sendClientError(res, 429, "QUOTA_EXCEEDED");
+      if (isGeminiFallbackError(geminiResponse.status, data)) {
+        try {
+          const fallbackResult = await callGroqFallback(prompt);
+          let fallbackAnswer = fallbackResult.answer;
+
+          if (hasProfile && !fallbackAnswer.includes(PROFILE_USED_NOTE)) {
+            fallbackAnswer = `${fallbackAnswer}\n\n${PROFILE_USED_NOTE}`;
+          }
+
+          return res.json({
+            answer: fallbackAnswer,
+            finishReason: fallbackResult.finishReason,
+            truncated: fallbackResult.truncated,
+            provider: "groq"
+          });
+        } catch (fallbackError) {
+          console.error("Groq fallback failed after Gemini API error:", fallbackError);
+        }
+
+        return sendClientError(res, geminiResponse.status === 429 ? 429 : 503, "QUOTA_EXCEEDED");
       }
 
       return sendClientError(res, geminiResponse.status, "API_ERROR");
@@ -316,6 +435,26 @@ app.post("/api/ask", async (req, res) => {
     });
   } catch (error) {
     console.error("Server error while calling Gemini API:", error);
+
+    if (isGeminiFallbackError(error.status || 503, {}, error.message || "")) {
+      try {
+        const fallbackResult = await callGroqFallback(prompt);
+        let fallbackAnswer = fallbackResult.answer;
+
+        if (hasProfile && !fallbackAnswer.includes(PROFILE_USED_NOTE)) {
+          fallbackAnswer = `${fallbackAnswer}\n\n${PROFILE_USED_NOTE}`;
+        }
+
+        return res.json({
+          answer: fallbackAnswer,
+          finishReason: fallbackResult.finishReason,
+          truncated: fallbackResult.truncated,
+          provider: "groq"
+        });
+      } catch (fallbackError) {
+        console.error("Groq fallback failed after Gemini exception:", fallbackError);
+      }
+    }
 
     const networkErrorCodes = new Set(["ENOTFOUND", "ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN"]);
     const isNetworkError =
