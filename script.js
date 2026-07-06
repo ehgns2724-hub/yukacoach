@@ -43,6 +43,8 @@ const clearFavoritesButton = document.querySelector("#clearFavoritesButton");
 const loginButton = document.querySelector("#loginButton");
 const logoutButton = document.querySelector("#logoutButton");
 const authStatus = document.querySelector("#authStatus");
+const authAvatar = document.querySelector("#authAvatar");
+const adminBadge = document.querySelector("#adminBadge");
 const toast = document.querySelector("#toast");
 const featureTabs = document.querySelectorAll("[data-view-target]");
 const featureViews = document.querySelectorAll("[data-view]");
@@ -76,13 +78,16 @@ let firebaseState = {
   user: null,
   modules: null,
   syncing: false,
-  cloudAvailable: false
+  cloudAvailable: false,
+  adminEmailHash: "",
+  isAdmin: false
 };
 let requestedLogout = false;
 
 const FIRESTORE_TIMEOUT_MS = 8000;
 const DAILY_TEXT_LIMIT = 10;
 const DAILY_IMAGE_LIMIT = 2;
+const ADMIN_DAILY_LIMIT = 100;
 const VACCINE_DEFAULTS = [
   ["BCG", "생후 4주 이내"],
   ["B형간염", "출생 직후, 1개월, 6개월"],
@@ -300,6 +305,48 @@ function withTimeout(promise, label, timeoutMs = FIRESTORE_TIMEOUT_MS) {
   });
 }
 
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+async function hashEmail(email) {
+  const normalized = normalizeEmail(email);
+
+  if (!normalized || !window.crypto?.subtle) {
+    return "";
+  }
+
+  const bytes = new TextEncoder().encode(normalized);
+  const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function resolveAdminState(user) {
+  if (!user?.email || !firebaseState.adminEmailHash) {
+    return false;
+  }
+
+  try {
+    const emailHash = await hashEmail(user.email);
+    return Boolean(emailHash && emailHash === firebaseState.adminEmailHash);
+  } catch (error) {
+    console.error("Admin email hash check failed:", error);
+    return false;
+  }
+}
+
+function getUserDisplayName(user = firebaseState.user) {
+  return user?.displayName || user?.email || "Google 계정";
+}
+
+function getAuthStatusText(suffix = "클라우드 저장 완료") {
+  const roleText = firebaseState.isAdmin ? "관리자 100회" : "일반 10회";
+  return `${getUserDisplayName()} · ${roleText} · ${suffix}`;
+}
+
 function getLocalSnapshot() {
   return {
     profile: getProfile(),
@@ -374,7 +421,7 @@ async function saveSnapshotToCloud(snapshot = getLocalSnapshot()) {
     console.log("Firestore save success:", { path: docPath });
 
     if (firebaseState.user && !firebaseState.syncing) {
-      authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
+      authStatus.textContent = getAuthStatusText("클라우드 저장 완료");
     }
   } catch (error) {
     console.error("Firestore save failed:", {
@@ -605,13 +652,15 @@ async function reserveDailyUsage(hasPhoto) {
   const dateKey = getTodayKey();
   const usageDoc = getUsageDocRef(dateKey);
   const path = getUsageDocPath(dateKey);
-  const field = hasPhoto ? "imageCount" : "textCount";
-  const limit = hasPhoto ? DAILY_IMAGE_LIMIT : DAILY_TEXT_LIMIT;
+  const field = firebaseState.isAdmin ? "totalCount" : (hasPhoto ? "imageCount" : "textCount");
+  const limit = firebaseState.isAdmin ? ADMIN_DAILY_LIMIT : (hasPhoto ? DAILY_IMAGE_LIMIT : DAILY_TEXT_LIMIT);
+  const role = firebaseState.isAdmin ? "admin" : "user";
 
   console.log("Firestore usage check start:", {
     path,
     field,
-    limit
+    limit,
+    role
   });
 
   try {
@@ -623,9 +672,10 @@ async function reserveDailyUsage(hasPhoto) {
       if (currentCount >= limit) {
         return {
           allowed: false,
-          errorCode: hasPhoto ? "DAILY_IMAGE_LIMIT" : "DAILY_TEXT_LIMIT",
+          errorCode: firebaseState.isAdmin ? "DAILY_ADMIN_LIMIT" : (hasPhoto ? "DAILY_IMAGE_LIMIT" : "DAILY_TEXT_LIMIT"),
           currentCount,
-          limit
+          limit,
+          role
         };
       }
 
@@ -633,16 +683,28 @@ async function reserveDailyUsage(hasPhoto) {
         date: dateKey,
         textCount: Number(currentData.textCount || 0),
         imageCount: Number(currentData.imageCount || 0),
+        totalCount: Number(currentData.totalCount || 0),
+        role,
+        limit,
+        isAdmin: firebaseState.isAdmin,
         updatedAt: new Date().toISOString()
       };
 
-      nextData[field] = currentCount + 1;
+      if (firebaseState.isAdmin) {
+        nextData.totalCount = currentCount + 1;
+        nextData[hasPhoto ? "imageCount" : "textCount"] += 1;
+      } else {
+        nextData[field] = currentCount + 1;
+        nextData.totalCount += 1;
+      }
+
       transaction.set(usageDoc, nextData, { merge: true });
 
       return {
         allowed: true,
         currentCount: currentCount + 1,
-        limit
+        limit,
+        role
       };
     }), "Firestore usage transaction");
 
@@ -686,7 +748,7 @@ async function saveProfileToCloud(profile, options = {}) {
   try {
     await withTimeout(firebaseState.modules.setDoc(profileDoc, payload, { merge: true }), "Firestore profile setDoc");
     console.log("Firestore profile setDoc success:", { path });
-    authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
+    authStatus.textContent = getAuthStatusText("클라우드 저장 완료");
 
     if (options.showToast) {
       showToast("프로필 저장 완료");
@@ -721,7 +783,7 @@ async function syncCloudToLocal() {
   const docPath = getCloudDocPath();
   firebaseState.syncing = true;
   firebaseState.cloudAvailable = true;
-  authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 중`;
+  authStatus.textContent = getAuthStatusText("클라우드 저장 중");
 
   console.log("Firestore sync start:", { path: docPath });
 
@@ -752,7 +814,7 @@ async function syncCloudToLocal() {
     }
     applySnapshot(mergedSnapshot);
 
-    authStatus.textContent = `${firebaseState.user.displayName || firebaseState.user.email || "Google 계정"} · 클라우드 저장 완료`;
+    authStatus.textContent = getAuthStatusText("클라우드 저장 완료");
     firebaseState.cloudAvailable = true;
     await loadBetaFeaturesFromCloud();
     console.log("Firestore sync complete:", { path: docPath });
@@ -772,10 +834,20 @@ async function syncCloudToLocal() {
 
 function updateAuthUI(user) {
   if (user) {
-    authStatus.textContent = `${user.displayName || user.email || "Google 계정"} · 클라우드 저장 중`;
+    authStatus.textContent = getAuthStatusText("클라우드 저장 중");
     loginButton.hidden = true;
     loginButton.disabled = false;
     logoutButton.hidden = false;
+
+    if (authAvatar) {
+      authAvatar.hidden = !user.photoURL;
+      authAvatar.src = user.photoURL || "";
+    }
+
+    if (adminBadge) {
+      adminBadge.hidden = !firebaseState.isAdmin;
+    }
+
     return;
   }
 
@@ -793,6 +865,15 @@ function updateAuthUI(user) {
   loginButton.hidden = false;
   loginButton.disabled = !firebaseState.enabled;
   logoutButton.hidden = true;
+
+  if (authAvatar) {
+    authAvatar.hidden = true;
+    authAvatar.removeAttribute("src");
+  }
+
+  if (adminBadge) {
+    adminBadge.hidden = true;
+  }
 }
 
 async function initializeFirebase() {
@@ -812,7 +893,8 @@ async function initializeFirebase() {
       projectId: data.config.projectId,
       hasApiKey: Boolean(data.config.apiKey),
       apiKeyPreview: data.config.apiKey ? `${data.config.apiKey.slice(0, 4)}...${data.config.apiKey.slice(-4)}` : "",
-      appIdPreview: data.config.appId ? `${data.config.appId.slice(0, 4)}...${data.config.appId.slice(-4)}` : ""
+      appIdPreview: data.config.appId ? `${data.config.appId.slice(0, 4)}...${data.config.appId.slice(-4)}` : "",
+      hasAdminEmailHash: Boolean(data.adminEmailHash)
     });
 
     const [{ initializeApp }, authModule, firestoreModule] = await Promise.all([
@@ -827,9 +909,15 @@ async function initializeFirebase() {
       auth: authModule.getAuth(app),
       db: firestoreModule.getFirestore(app),
       user: null,
+      syncing: false,
+      cloudAvailable: false,
+      adminEmailHash: data.adminEmailHash || "",
+      isAdmin: false,
       modules: {
         GoogleAuthProvider: authModule.GoogleAuthProvider,
         signInWithPopup: authModule.signInWithPopup,
+        setPersistence: authModule.setPersistence,
+        browserSessionPersistence: authModule.browserSessionPersistence,
         signOut: authModule.signOut,
         onAuthStateChanged: authModule.onAuthStateChanged,
         doc: firestoreModule.doc,
@@ -845,8 +933,11 @@ async function initializeFirebase() {
       }
     };
 
+    await firebaseState.modules.setPersistence(firebaseState.auth, firebaseState.modules.browserSessionPersistence);
+
     firebaseState.modules.onAuthStateChanged(firebaseState.auth, async (user) => {
       firebaseState.user = user;
+      firebaseState.isAdmin = await resolveAdminState(user);
       updateAuthUI(user);
 
       if (user) {
@@ -1090,6 +1181,7 @@ const USER_ERROR_MESSAGES = {
   IMAGE_TOO_LARGE: "사진 용량이 너무 큽니다. 5MB 이하의 사진을 선택해주세요.",
   DAILY_TEXT_LIMIT: "오늘의 텍스트 질문 10회를 모두 사용했습니다. 내일 다시 이용해주세요.",
   DAILY_IMAGE_LIMIT: "오늘의 사진 분석 2회를 모두 사용했습니다. 내일 다시 이용해주세요.",
+  DAILY_ADMIN_LIMIT: "관리자 하루 질문 100회를 모두 사용했습니다. 내일 다시 이용해주세요.",
   USAGE_CHECK_FAILED: "사용량 확인 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
 };
 

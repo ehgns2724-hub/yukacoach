@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 require("dotenv").config();
 
 const app = express();
@@ -9,6 +10,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || process.env.MODEL_NAME || "gemi
 const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
 const PUBLIC_DIR = __dirname;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const FIREBASE_CONFIG = {
@@ -33,6 +35,16 @@ function maskConfigValue(value) {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+function hashEmail(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  if (!normalized) {
+    return "";
+  }
+
+  return crypto.createHash("sha256").update(normalized).digest("hex");
+}
+
 function getFirebaseConfigDiagnostics() {
   return {
     hasApiKey: Boolean(FIREBASE_CONFIG.apiKey),
@@ -41,7 +53,8 @@ function getFirebaseConfigDiagnostics() {
     projectId: FIREBASE_CONFIG.projectId || "",
     storageBucket: FIREBASE_CONFIG.storageBucket || "",
     messagingSenderId: maskConfigValue(FIREBASE_CONFIG.messagingSenderId),
-    appIdPreview: maskConfigValue(FIREBASE_CONFIG.appId)
+    appIdPreview: maskConfigValue(FIREBASE_CONFIG.appId),
+    hasAdminEmail: Boolean(ADMIN_EMAIL)
   };
 }
 
@@ -170,7 +183,8 @@ app.get("/api/firebase-config", (req, res) => {
 
   return res.json({
     enabled: true,
-    config: FIREBASE_CONFIG
+    config: FIREBASE_CONFIG,
+    adminEmailHash: hashEmail(ADMIN_EMAIL)
   });
 });
 
