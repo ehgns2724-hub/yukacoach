@@ -71,6 +71,13 @@ const diaryDiapersInput = document.querySelector("#diaryDiapers");
 const diaryMoodInput = document.querySelector("#diaryMood");
 const diaryMemoInput = document.querySelector("#diaryMemo");
 const diaryList = document.querySelector("#diaryList");
+const storedQuestionCount = document.querySelector("#storedQuestionCount");
+const storedPhotoCount = document.querySelector("#storedPhotoCount");
+const lastSavedDate = document.querySelector("#lastSavedDate");
+const deleteAllHistoryButton = document.querySelector("#deleteAllHistoryButton");
+const deleteAllPhotosButton = document.querySelector("#deleteAllPhotosButton");
+const deleteAllFavoritesButton = document.querySelector("#deleteAllFavoritesButton");
+const deleteAccountButton = document.querySelector("#deleteAccountButton");
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -440,6 +447,7 @@ function applySnapshot(snapshot) {
   loadProfileForm();
   renderHistory();
   renderFavorites();
+  updateDataSummary();
 }
 
 function mergeItems(localItems, cloudItems) {
@@ -671,6 +679,32 @@ async function deleteBetaItem(collectionName, id) {
   } catch (error) {
     console.error(`Firestore ${collectionName} deleteDoc failed:`, { path, error });
     showToast("클라우드 삭제 실패 - 로컬에서만 삭제했어요");
+  }
+}
+
+async function deleteCloudCollection(collectionName) {
+  if (!firebaseState.user || !firebaseState.cloudAvailable) {
+    return;
+  }
+
+  const collectionRef = getUserCollectionRef(collectionName);
+
+  if (!collectionRef) {
+    return;
+  }
+
+  const path = getUserCollectionPath(collectionName);
+  console.log(`Firestore ${collectionName} bulk delete start:`, { path });
+
+  try {
+    const snapshot = await withTimeout(firebaseState.modules.getDocs(collectionRef), `Firestore ${collectionName} getDocs for delete`);
+    await Promise.all(snapshot.docs.map((docSnapshot) => (
+      withTimeout(firebaseState.modules.deleteDoc(docSnapshot.ref), `Firestore ${collectionName} deleteDoc`)
+    )));
+    console.log(`Firestore ${collectionName} bulk delete success:`, { path, count: snapshot.docs.length });
+  } catch (error) {
+    console.error(`Firestore ${collectionName} bulk delete failed:`, { path, error });
+    throw error;
   }
 }
 
@@ -990,6 +1024,7 @@ async function initializeFirebase() {
         setPersistence: authModule.setPersistence,
         browserSessionPersistence: authModule.browserSessionPersistence,
         signOut: authModule.signOut,
+        deleteUser: authModule.deleteUser,
         onAuthStateChanged: authModule.onAuthStateChanged,
         doc: firestoreModule.doc,
         collection: firestoreModule.collection,
@@ -1347,10 +1382,18 @@ function renderAnswer(item, options = {}) {
     ? "주의: Gemini 응답이 길이 제한에 도달해 일부가 잘렸을 수 있습니다. 질문을 더 구체적으로 줄여 다시 시도해보세요."
     : "주의: 육아코치의 답변은 일반적인 육아 정보입니다. 고열, 호흡 문제, 탈수, 심한 통증, 평소와 다른 처짐이 있으면 의료 전문가에게 상담하세요.";
 
+  const medicalWarning = document.createElement("div");
+  medicalWarning.className = "medical-warning-card";
+  const medicalWarningTitle = document.createElement("strong");
+  medicalWarningTitle.textContent = "의료 안전 안내";
+  const medicalWarningText = document.createElement("p");
+  medicalWarningText.textContent = "본 서비스는 의료 진단을 제공하지 않습니다.\n응급상황 또는 심각한 증상이 의심되는 경우 즉시 의료기관을 방문하세요.";
+  medicalWarning.append(medicalWarningTitle, medicalWarningText);
+
   if (shouldShowEmergency) {
-    resultPanel.append(header, emergencyCard, card, notice);
+    resultPanel.append(header, emergencyCard, card, medicalWarning, notice);
   } else {
-    resultPanel.append(header, card, notice);
+    resultPanel.append(header, card, medicalWarning, notice);
   }
 }
 
@@ -1668,12 +1711,14 @@ async function loadBetaFeaturesFromCloud() {
   renderGrowth();
   renderVaccinations();
   renderDiary();
+  updateDataSummary();
 }
 
 function addHistory(item) {
   const nextHistory = [item, ...getHistory()].slice(0, 40);
   setHistory(nextHistory);
   renderHistory();
+  updateDataSummary();
   saveHistoryItemToCloud(item).catch((error) => handleCloudSaveError("Failed to save history item to Firestore:", error));
   saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save history to Firestore:", error));
 }
@@ -1681,6 +1726,7 @@ function addHistory(item) {
 function removeHistory(id) {
   setHistory(getHistory().filter((item) => item.id !== id));
   renderHistory();
+  updateDataSummary();
   saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to remove history from Firestore:", error));
 }
 
@@ -1694,14 +1740,150 @@ function addFavorite(item) {
   if (!favorites.some((favorite) => favorite.id === item.id)) {
     setFavorites([item, ...favorites]);
     renderFavorites();
+    updateDataSummary();
     saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to save favorite to Firestore:", error));
   }
+}
+
+function updateDataSummary() {
+  if (!storedQuestionCount || !storedPhotoCount || !lastSavedDate) {
+    return;
+  }
+
+  const history = getHistory();
+  const favorites = getFavorites();
+  const growth = getGrowthRecords();
+  const diary = getDiaryEntries();
+  const photoCount = history.filter((item) => item.hasImage).length;
+  const dates = [...history, ...favorites, ...growth, ...diary]
+    .map((item) => item.updatedAt || item.createdAt || item.date)
+    .filter(Boolean)
+    .map((value) => new Date(value))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b - a);
+
+  storedQuestionCount.textContent = `${history.length}개`;
+  storedPhotoCount.textContent = `${photoCount}개`;
+  lastSavedDate.textContent = dates.length ? formatDateTime(dates[0].toISOString()) : "없음";
 }
 
 function removeFavorite(id) {
   setFavorites(getFavorites().filter((item) => item.id !== id));
   renderFavorites();
+  updateDataSummary();
   saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to remove favorite from Firestore:", error));
+}
+
+async function clearAllHistory() {
+  setHistory([]);
+  renderHistory();
+  updateDataSummary();
+
+  try {
+    await deleteCloudCollection("history");
+    await saveSnapshotToCloud();
+    showToast("질문기록을 모두 삭제했어요.");
+  } catch (error) {
+    handleCloudSaveError("Failed to clear all history:", error);
+  }
+}
+
+async function clearAllPhotoHistory() {
+  const history = getHistory();
+  const imageItems = history.filter((item) => item.hasImage);
+  const nextHistory = history.filter((item) => !item.hasImage);
+  setHistory(nextHistory);
+  clearSelectedPhoto();
+  updateUsageStatus(false);
+  renderHistory();
+  updateDataSummary();
+
+  try {
+    if (firebaseState.user && firebaseState.cloudAvailable) {
+      await Promise.all(imageItems.map((item) => {
+        const docRef = getHistoryDocRef(item.id);
+        return docRef
+          ? withTimeout(firebaseState.modules.deleteDoc(docRef), "Firestore photo history deleteDoc")
+          : Promise.resolve();
+      }));
+    }
+
+    await saveSnapshotToCloud();
+    showToast("사진 분석 기록을 삭제했어요.");
+  } catch (error) {
+    handleCloudSaveError("Failed to clear photo history:", error);
+  }
+}
+
+async function clearAllFavorites() {
+  setFavorites([]);
+  renderFavorites();
+  updateDataSummary();
+
+  try {
+    await saveSnapshotToCloud();
+    showToast("즐겨찾기를 모두 삭제했어요.");
+  } catch (error) {
+    handleCloudSaveError("Failed to clear all favorites:", error);
+  }
+}
+
+function clearAllLocalAppData() {
+  Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+  Object.values(LEGACY_KEYS).forEach((key) => localStorage.removeItem(key));
+  selectedPhoto = null;
+  if (photoInput) {
+    photoInput.value = "";
+  }
+}
+
+async function deleteCloudAccountData() {
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    return;
+  }
+
+  const profileDoc = getProfileDocRef();
+  const userDoc = getCloudDocRef();
+  const collections = ["history", "growth", "vaccinations", "diary", "usage"];
+
+  await Promise.all(collections.map((collectionName) => deleteCloudCollection(collectionName)));
+
+  if (profileDoc) {
+    await withTimeout(firebaseState.modules.deleteDoc(profileDoc), "Firestore profile deleteDoc");
+  }
+
+  if (userDoc) {
+    await withTimeout(firebaseState.modules.deleteDoc(userDoc), "Firestore user deleteDoc");
+  }
+}
+
+async function deleteAccount() {
+  const confirmed = window.confirm("정말 삭제하시겠습니까? 회원정보, 질문기록, 사진 분석 기록, 즐겨찾기가 모두 삭제됩니다.");
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await deleteCloudAccountData();
+    clearAllLocalAppData();
+    loadProfileForm();
+    renderHistory();
+    renderFavorites();
+    renderGrowth();
+    renderVaccinations();
+    renderDiary();
+    updateDataSummary();
+
+    if (firebaseState.user && firebaseState.modules?.deleteUser) {
+      await firebaseState.modules.deleteUser(firebaseState.user);
+    }
+
+    showToast("회원 탈퇴가 완료되었습니다.");
+  } catch (error) {
+    console.error("Failed to delete account:", error);
+    renderError("회원 탈퇴 처리 중 문제가 발생했습니다. 최근 로그인 후 다시 시도해주세요.");
+  }
 }
 
 function clearSelectedPhoto() {
@@ -1964,17 +2146,24 @@ quickQuestionButtons.forEach((button) => {
   });
 });
 
-clearHistoryButton.addEventListener("click", () => {
-  setHistory([]);
-  renderHistory();
-  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear history in Firestore:", error));
-});
+clearHistoryButton.addEventListener("click", clearAllHistory);
+clearFavoritesButton.addEventListener("click", clearAllFavorites);
 
-clearFavoritesButton.addEventListener("click", () => {
-  setFavorites([]);
-  renderFavorites();
-  saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear favorites in Firestore:", error));
-});
+if (deleteAllHistoryButton) {
+  deleteAllHistoryButton.addEventListener("click", clearAllHistory);
+}
+
+if (deleteAllPhotosButton) {
+  deleteAllPhotosButton.addEventListener("click", clearAllPhotoHistory);
+}
+
+if (deleteAllFavoritesButton) {
+  deleteAllFavoritesButton.addEventListener("click", clearAllFavorites);
+}
+
+if (deleteAccountButton) {
+  deleteAccountButton.addEventListener("click", deleteAccount);
+}
 
 growthForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -1989,6 +2178,7 @@ growthForm.addEventListener("submit", (event) => {
   const nextRecords = sortByDateDesc([record, ...getGrowthRecords()]);
   setGrowthRecords(nextRecords);
   renderGrowth();
+  updateDataSummary();
   saveBetaItem("growth", record);
   showToast("성장 기록 저장 완료");
   growthForm.reset();
@@ -2018,6 +2208,7 @@ diaryForm.addEventListener("submit", (event) => {
   const nextEntries = sortByDateDesc([entry, ...getDiaryEntries()]);
   setDiaryEntries(nextEntries);
   renderDiary();
+  updateDataSummary();
   saveBetaItem("diary", entry);
   showToast("육아일기 저장 완료");
   diaryForm.reset();
@@ -2034,6 +2225,7 @@ diaryList.addEventListener("click", (event) => {
   const nextEntries = getDiaryEntries().filter((entry) => entry.id !== deleteButton.dataset.diaryDelete);
   setDiaryEntries(nextEntries);
   renderDiary();
+  updateDataSummary();
   deleteBetaItem("diary", deleteButton.dataset.diaryDelete);
   showToast("육아일기를 삭제했어요");
 });
@@ -2073,6 +2265,7 @@ migrateLegacyStorage();
 loadProfileForm();
 renderHistory();
 renderFavorites();
+updateDataSummary();
 setDefaultDates();
 renderGrowth();
 renderVaccinations();
