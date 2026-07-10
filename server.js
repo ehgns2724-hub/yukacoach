@@ -169,6 +169,14 @@ app.use(express.static(PUBLIC_DIR, {
   maxAge: process.env.NODE_ENV === "production" ? "1h" : 0
 }));
 
+app.get(["/privacy", "/privacy.html"], (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, "privacy.html"));
+});
+
+app.get(["/terms", "/terms.html"], (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, "terms.html"));
+});
+
 app.get("/api/firebase-config", (req, res) => {
   console.info("Firebase config diagnostics:", getFirebaseConfigDiagnostics());
 
