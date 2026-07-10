@@ -1265,9 +1265,11 @@ const URGENT_KEYWORDS = [
   "구토", "외상", "화상", "머리를", "삼켰", "질식"
 ];
 
+const MOBILE_RISK_KEYWORDS = ["열", "응급", "구토", "호흡", "경련", "발작", "탈수", "119", "고열", "숨", "의식"];
+
 function isUrgentQuestion(item) {
   const text = `${item.question || ""}\n${item.answer || ""}`;
-  return URGENT_KEYWORDS.some((keyword) => text.includes(keyword));
+  return [...URGENT_KEYWORDS, ...MOBILE_RISK_KEYWORDS].some((keyword) => text.includes(keyword));
 }
 
 function parseStructuredAnswer(answer) {
@@ -1449,7 +1451,7 @@ function renderAnswer(item, options = {}) {
     : "주의: 육아코치의 답변은 일반적인 육아 정보입니다. 고열, 호흡 문제, 탈수, 심한 통증, 평소와 다른 처짐이 있으면 의료 전문가에게 상담하세요.";
 
   const medicalWarning = document.createElement("div");
-  medicalWarning.className = "medical-warning-card";
+  medicalWarning.className = `medical-warning-card ${shouldShowEmergency ? "is-risk-visible" : ""}`.trim();
   const medicalWarningTitle = document.createElement("strong");
   medicalWarningTitle.textContent = "의료 안전 안내";
   const medicalWarningText = document.createElement("p");

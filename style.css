@@ -207,6 +207,10 @@ p {
   text-decoration: none;
 }
 
+.mobile-hero-prompt {
+  display: none;
+}
+
 .auth-card {
   width: min(100%, 560px);
   display: flex;
@@ -1838,11 +1842,53 @@ textarea:focus {
   .hero {
     order: 1;
     display: grid;
+    gap: 18px;
+    min-height: auto;
+    margin-bottom: 14px;
+    padding: 24px 20px;
+    border-radius: 26px;
+  }
+
+  .hero h1 {
+    margin-bottom: 8px;
+    font-size: 42px;
+  }
+
+  .hero h2 {
+    margin-bottom: 8px;
+    font-size: 24px;
+  }
+
+  .hero p:not(.eyebrow):not(.mobile-hero-prompt) {
+    display: none;
+  }
+
+  .mobile-hero-prompt {
+    display: block;
+    margin-bottom: 14px;
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1.5;
+  }
+
+  .hero-visual {
+    min-height: 180px;
+  }
+
+  .illustration-shell {
+    min-height: 180px;
+  }
+
+  .hero-illustration {
+    max-height: 180px;
   }
 
   .feature-tabs {
     order: 2;
     display: flex;
+    margin-bottom: 14px;
+    padding: 6px;
   }
 
   .feature-tab[data-view-target="diary"] {
@@ -1852,6 +1898,10 @@ textarea:focus {
   .feature-tab[data-view-target="diary"]::after {
     content: "육아백과";
     font-size: 14px;
+  }
+
+  .feature-tab[data-view-target="settings"] {
+    display: none;
   }
 
   .mobile-auth-card {
@@ -1882,6 +1932,28 @@ textarea:focus {
   .mobile-auth-actions {
     display: grid;
     gap: 10px;
+  }
+
+  .mobile-login-benefits {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mobile-login-benefits li {
+    color: #303846;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+
+  .mobile-login-benefits li::before {
+    content: "✓";
+    margin-right: 8px;
+    color: var(--primary);
+    font-weight: 900;
   }
 
   .app-footer {
@@ -1936,6 +2008,32 @@ textarea:focus {
 
   .question-panel {
     margin-bottom: 16px;
+    padding: 18px;
+  }
+
+  .question-panel .section-heading {
+    margin-bottom: 12px;
+  }
+
+  .search-form {
+    gap: 10px;
+  }
+
+  .photo-upload-area {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .quick-questions {
+    margin-top: 12px;
+  }
+
+  .medical-warning-card {
+    display: none;
+  }
+
+  .medical-warning-card.is-risk-visible {
+    display: block;
   }
 
   .mobile-current-child {
