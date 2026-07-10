@@ -81,6 +81,7 @@
       </div>
 
       <form class="search-form" id="searchForm">
+        <div class="usage-status" id="usageStatus" aria-live="polite">오늘 남은 질문 횟수를 확인하고 있어요.</div>
         <div class="photo-upload-area">
           <input
             class="photo-input"
@@ -133,6 +134,10 @@
               <h2 id="profile-title">아이 프로필</h2>
               <span class="status-pill" id="profileStatus">미저장</span>
             </div>
+          </div>
+          <div class="profile-mobile-summary">
+            <span id="profileSummaryMini">아이 프로필을 입력하면 더 맞춤형으로 답변해요.</span>
+            <button class="text-button" type="button" id="profileToggleButton" aria-expanded="false">펼치기</button>
           </div>
 
           <form class="profile-form" id="profileForm">

@@ -24,6 +24,9 @@ const sleepPatternInput = document.querySelector("#sleepPattern");
 const notesInput = document.querySelector("#notes");
 const profileStatus = document.querySelector("#profileStatus");
 const clearProfileButton = document.querySelector("#clearProfileButton");
+const profileSummaryMini = document.querySelector("#profileSummaryMini");
+const profileToggleButton = document.querySelector("#profileToggleButton");
+const profileCard = document.querySelector(".profile-card");
 
 const searchForm = document.querySelector("#searchForm");
 const questionInput = document.querySelector("#questionInput");
@@ -34,6 +37,7 @@ const photoPreviewName = document.querySelector("#photoPreviewName");
 const removePhotoButton = document.querySelector("#removePhotoButton");
 const resultPanel = document.querySelector("#answer-section");
 const searchButton = document.querySelector("#searchButton");
+const usageStatus = document.querySelector("#usageStatus");
 const quickQuestionButtons = document.querySelectorAll("[data-question]");
 
 const historyList = document.querySelector("#historyList");
@@ -83,6 +87,8 @@ let firebaseState = {
   isAdmin: false
 };
 let requestedLogout = false;
+let isSubmittingQuestion = false;
+let lastQuestionText = "";
 
 const FIRESTORE_TIMEOUT_MS = 8000;
 const DAILY_TEXT_LIMIT = 10;
@@ -370,6 +376,43 @@ function getUserDisplayName(user = firebaseState.user) {
 function getAuthStatusText(suffix = "클라우드 저장 완료") {
   const roleText = firebaseState.isAdmin ? "관리자 100회" : "일반 10회";
   return `${getUserDisplayName()} · ${roleText} · ${suffix}`;
+}
+
+function getDailyLimitForQuestion(hasPhoto = false) {
+  if (firebaseState.isAdmin) {
+    return ADMIN_DAILY_LIMIT;
+  }
+
+  return hasPhoto ? DAILY_IMAGE_LIMIT : DAILY_TEXT_LIMIT;
+}
+
+async function updateUsageStatus(hasPhoto = Boolean(selectedPhoto)) {
+  if (!usageStatus) {
+    return;
+  }
+
+  const limit = getDailyLimitForQuestion(hasPhoto);
+  const label = firebaseState.isAdmin ? "관리자" : (hasPhoto ? "사진 분석" : "텍스트 질문");
+
+  if (!firebaseState.user || !firebaseState.db || !firebaseState.modules) {
+    usageStatus.textContent = `오늘 남은 ${label}: ${limit}회`;
+    return;
+  }
+
+  const dateKey = getTodayKey();
+  const usageDoc = getUsageDocRef(dateKey);
+  const field = firebaseState.isAdmin ? "totalCount" : (hasPhoto ? "imageCount" : "textCount");
+
+  try {
+    const snapshot = await withTimeout(firebaseState.modules.getDoc(usageDoc), "Firestore usage getDoc");
+    const currentData = snapshot.exists() ? snapshot.data() : {};
+    const used = Number(currentData[field] || 0);
+    const remaining = Math.max(limit - used, 0);
+    usageStatus.textContent = `오늘 남은 ${label}: ${remaining}회 / ${limit}회`;
+  } catch (error) {
+    console.error("Failed to load usage status:", error);
+    usageStatus.textContent = `오늘 ${label} 한도: ${limit}회`;
+  }
 }
 
 function getLocalSnapshot() {
@@ -873,6 +916,7 @@ function updateAuthUI(user) {
       adminBadge.hidden = !firebaseState.isAdmin;
     }
 
+    updateUsageStatus();
     return;
   }
 
@@ -899,6 +943,8 @@ function updateAuthUI(user) {
   if (adminBadge) {
     adminBadge.hidden = true;
   }
+
+  updateUsageStatus();
 }
 
 async function initializeFirebase() {
@@ -1063,6 +1109,18 @@ function loadProfileForm() {
     profile.notes
   );
   profileStatus.textContent = hasProfile ? "맞춤 상담 준비됨" : "미저장";
+
+  if (profileSummaryMini) {
+    const summaryParts = [
+      profile.childName || "",
+      profile.childMonths ? `${profile.childMonths}개월` : "",
+      profile.childGender || "",
+      profile.feedingType || ""
+    ].filter(Boolean);
+    profileSummaryMini.textContent = summaryParts.length
+      ? `현재 아이: ${summaryParts.join(" · ")}`
+      : "아이 프로필을 입력하면 더 맞춤형으로 답변해요.";
+  }
 }
 
 function collectProfileForm() {
@@ -1099,6 +1157,83 @@ function splitAnswer(answer) {
   };
 }
 
+const ANSWER_SECTION_TITLES = ["핵심 요약", "지금 해볼 방법", "피해야 할 행동", "전문가 상담 기준", "관련 영상"];
+const URGENT_KEYWORDS = [
+  "응급", "119", "호흡곤란", "숨을", "숨쉬", "청색증", "파래", "의식", "경련", "발작",
+  "탈수", "소변이 안", "축 처", "처짐", "고열", "40도", "피가", "알레르기", "아나필락시스",
+  "구토", "외상", "화상", "머리를", "삼켰", "질식"
+];
+
+function isUrgentQuestion(item) {
+  const text = `${item.question || ""}\n${item.answer || ""}`;
+  return URGENT_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
+function parseStructuredAnswer(answer) {
+  const sections = ANSWER_SECTION_TITLES.reduce((map, title) => {
+    map[title] = "";
+    return map;
+  }, {});
+  const lines = answer.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  let currentTitle = "";
+  let emergency = "";
+
+  lines.forEach((line) => {
+    const cleanLine = line
+      .replace(/^[-*#\s]+/, "")
+      .replace(/^\d+[.)]\s*/, "")
+      .replace(/\*\*/g, "")
+      .trim();
+    const urgentMatch = cleanLine.match(/^긴급 안내\s*[:：-]\s*(.*)$/);
+
+    if (urgentMatch) {
+      emergency = urgentMatch[1] || cleanLine;
+      return;
+    }
+
+    const title = ANSWER_SECTION_TITLES.find((sectionTitle) => cleanLine.startsWith(sectionTitle));
+
+    if (title) {
+      currentTitle = title;
+      const content = cleanLine.replace(new RegExp(`^${title}\\s*[:：-]?\\s*`), "").trim();
+
+      if (content) {
+        sections[title] = sections[title] ? `${sections[title]}\n${content}` : content;
+      }
+
+      return;
+    }
+
+    if (currentTitle) {
+      sections[currentTitle] = sections[currentTitle]
+        ? `${sections[currentTitle]}\n${cleanLine}`
+        : cleanLine;
+    }
+  });
+
+  if (!Object.values(sections).some(Boolean)) {
+    const fallback = splitAnswer(answer);
+    sections["핵심 요약"] = fallback.highlight;
+    sections["지금 해볼 방법"] = fallback.body;
+  }
+
+  return { emergency, sections };
+}
+
+function createAnswerSection(title, body, className = "") {
+  const section = document.createElement("section");
+  section.className = `answer-section-card ${className}`.trim();
+
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+
+  const text = document.createElement("p");
+  text.textContent = body || "AI 답변에서 이 항목을 따로 확인하지 못했어요. 질문을 조금 더 구체적으로 다시 물어보면 더 정확히 정리해드릴게요.";
+
+  section.append(heading, text);
+  return section;
+}
+
 function setLoading(question, hasPhoto = false) {
   resultPanel.innerHTML = "";
 
@@ -1125,7 +1260,8 @@ function setLoading(question, hasPhoto = false) {
 function renderAnswer(item, options = {}) {
   resultPanel.innerHTML = "";
 
-  const answerParts = splitAnswer(item.answer);
+  const structuredAnswer = parseStructuredAnswer(item.answer);
+  const shouldShowEmergency = Boolean(structuredAnswer.emergency || isUrgentQuestion(item));
 
   const header = document.createElement("div");
   header.className = "result-header";
@@ -1156,13 +1292,23 @@ function renderAnswer(item, options = {}) {
   const cardTitle = document.createElement("h3");
   cardTitle.textContent = item.hasImage ? "사진 분석 결과" : "육아코치 답변";
 
-  const highlight = document.createElement("p");
-  highlight.className = "answer-highlight";
-  highlight.textContent = answerParts.highlight;
+  const profileContext = document.createElement("p");
+  profileContext.className = "profile-reflection";
+  profileContext.textContent = item.profileSummary
+    ? `반영된 아이 프로필: ${item.profileSummary}`
+    : "반영된 아이 프로필: 저장된 프로필이 없어 일반 육아 정보로 답변했어요.";
 
-  const answerText = document.createElement("p");
-  answerText.className = "answer-text";
-  answerText.textContent = answerParts.body;
+  const sectionGrid = document.createElement("div");
+  sectionGrid.className = "answer-section-grid";
+
+  ANSWER_SECTION_TITLES.forEach((sectionTitle) => {
+    const className = sectionTitle === "피해야 할 행동"
+      ? "avoid-section"
+      : sectionTitle === "전문가 상담 기준"
+        ? "expert-section"
+        : "";
+    sectionGrid.append(createAnswerSection(sectionTitle, structuredAnswer.sections[sectionTitle], className));
+  });
 
   const actionRow = document.createElement("div");
   actionRow.className = "answer-actions";
@@ -1184,8 +1330,16 @@ function renderAnswer(item, options = {}) {
   });
 
   actionRow.append(youtubeLink, favoriteButton);
-  content.append(cardTitle, highlight, answerText, actionRow);
+  content.append(cardTitle, profileContext, sectionGrid, actionRow);
   card.append(aiIcon, content);
+
+  const emergencyCard = document.createElement("div");
+  emergencyCard.className = "emergency-card";
+  const emergencyTitle = document.createElement("strong");
+  emergencyTitle.textContent = "긴급 안내";
+  const emergencyText = document.createElement("p");
+  emergencyText.textContent = structuredAnswer.emergency || "호흡곤란, 의식 저하, 경련, 청색증, 심한 탈수, 반복 구토처럼 위험 신호가 있으면 즉시 119 또는 의료기관에 문의하세요.";
+  emergencyCard.append(emergencyTitle, emergencyText);
 
   const notice = document.createElement("p");
   notice.className = "notice";
@@ -1193,7 +1347,11 @@ function renderAnswer(item, options = {}) {
     ? "주의: Gemini 응답이 길이 제한에 도달해 일부가 잘렸을 수 있습니다. 질문을 더 구체적으로 줄여 다시 시도해보세요."
     : "주의: 육아코치의 답변은 일반적인 육아 정보입니다. 고열, 호흡 문제, 탈수, 심한 통증, 평소와 다른 처짐이 있으면 의료 전문가에게 상담하세요.";
 
-  resultPanel.append(header, card, notice);
+  if (shouldShowEmergency) {
+    resultPanel.append(header, emergencyCard, card, notice);
+  } else {
+    resultPanel.append(header, card, notice);
+  }
 }
 
 const USER_ERROR_MESSAGES = {
@@ -1229,19 +1387,26 @@ function renderError(message, errorCode = "") {
   content.className = "error-content";
 
   const title = document.createElement("strong");
-  title.textContent = "잠시 문제가 생겼어요";
+  title.textContent = "답변을 불러오지 못했어요";
 
   const summary = document.createElement("p");
-  summary.textContent = message;
+  summary.textContent = message || "잠시 후 다시 시도해주세요. 급한 증상이라면 AI 답변을 기다리지 말고 의료기관 또는 119에 문의하세요.";
 
-  content.append(title, summary);
+  const retryButton = document.createElement("button");
+  retryButton.className = "secondary-button retry-button";
+  retryButton.type = "button";
+  retryButton.textContent = "다시 시도";
+  retryButton.addEventListener("click", () => {
+    const question = lastQuestionText || questionInput.value.trim();
 
-  if (errorCode) {
-    const code = document.createElement("code");
-    code.className = "error-code";
-    code.textContent = `오류 코드: ${errorCode}`;
-    content.append(code);
-  }
+    if (question || selectedPhoto) {
+      askQuestion(question);
+    } else {
+      questionInput.focus();
+    }
+  });
+
+  content.append(title, summary, retryButton);
 
   errorBox.append(icon, content);
 
@@ -1586,6 +1751,7 @@ async function handlePhotoChange(event) {
 
   if (!file) {
     clearSelectedPhoto();
+    updateUsageStatus(false);
     return;
   }
 
@@ -1594,6 +1760,7 @@ async function handlePhotoChange(event) {
     photoPreviewImage.src = selectedPhoto.dataUrl;
     photoPreviewName.textContent = selectedPhoto.name;
     photoPreview.hidden = false;
+    updateUsageStatus(true);
   } catch (error) {
     console.error("Failed to read uploaded photo:", error);
     clearSelectedPhoto();
@@ -1602,6 +1769,10 @@ async function handlePhotoChange(event) {
 }
 
 async function askQuestion(question) {
+  if (isSubmittingQuestion) {
+    return;
+  }
+
   const profile = getProfile();
   const profileSummary = profileToSummary(profile);
   const imagePayload = selectedPhoto
@@ -1612,6 +1783,8 @@ async function askQuestion(question) {
     : null;
   const hasPhoto = Boolean(imagePayload);
   const finalQuestion = question || "이 사진을 분석해 주세요.";
+  lastQuestionText = finalQuestion;
+  isSubmittingQuestion = true;
 
   console.info("Sending child profile with Gemini request:", {
     hasProfile: hasProfileData(profile),
@@ -1703,8 +1876,10 @@ async function askQuestion(question) {
 
     scrollToAnswerSection();
   } finally {
+    isSubmittingQuestion = false;
     searchButton.disabled = false;
     searchButton.textContent = "질문하기";
+    updateUsageStatus(Boolean(selectedPhoto));
   }
 }
 
@@ -1745,6 +1920,14 @@ clearProfileButton.addEventListener("click", () => {
   saveSnapshotToCloud().catch((error) => handleCloudSaveError("Failed to clear profile in Firestore:", error));
 });
 
+if (profileToggleButton && profileCard) {
+  profileToggleButton.addEventListener("click", () => {
+    const isOpen = profileCard.classList.toggle("is-open");
+    profileToggleButton.setAttribute("aria-expanded", String(isOpen));
+    profileToggleButton.textContent = isOpen ? "접기" : "펼치기";
+  });
+}
+
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
@@ -1759,7 +1942,10 @@ searchForm.addEventListener("submit", (event) => {
 });
 
 photoInput.addEventListener("change", handlePhotoChange);
-removePhotoButton.addEventListener("click", clearSelectedPhoto);
+removePhotoButton.addEventListener("click", () => {
+  clearSelectedPhoto();
+  updateUsageStatus(false);
+});
 
 featureTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -1892,4 +2078,5 @@ renderGrowth();
 renderVaccinations();
 renderDiary();
 observeRevealElements();
+updateUsageStatus();
 initializeFirebase();
