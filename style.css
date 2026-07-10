@@ -2422,6 +2422,41 @@ textarea:focus {
     background: #fff7ed;
   }
 
+  .mobile-menu-list button,
+  .mobile-menu-list a {
+    gap: 10px;
+  }
+
+  .mobile-menu-list .menu-icon {
+    width: 24px;
+    min-width: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .feature-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    width: 100%;
+    overflow: visible;
+    padding: 5px;
+  }
+
+  .feature-tab {
+    min-width: 0;
+    min-height: 48px;
+    flex: initial;
+    padding: 0 4px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.2;
+    white-space: normal;
+  }
+
   .question-panel .mobile-current-child {
     order: 1;
     display: block;
@@ -2565,6 +2600,29 @@ textarea:focus {
     box-shadow: 0 10px 22px rgba(35, 55, 90, 0.06);
   }
 
+  .accordion-label {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .accordion-icon {
+    width: 22px;
+    min-width: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    line-height: 1;
+  }
+
+  .accordion-arrow {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
   #history-section,
   #favorites-section {
     order: 3;
@@ -2588,11 +2646,7 @@ textarea:focus {
   }
 
   .mobile-auth-card {
-    order: 4;
-    gap: 10px;
-    margin-top: 14px;
-    padding: 14px 16px;
-    border-radius: 18px;
+    display: none !important;
   }
 
   .mobile-login-benefits {
@@ -2610,5 +2664,40 @@ textarea:focus {
 
   .profile-card {
     order: 5;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .profile-card .profile-top {
+    margin-bottom: 8px;
+  }
+
+  .child-avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .profile-card .eyebrow,
+  .profile-card #profile-title,
+  .profile-card #profileStatus {
+    display: none;
+  }
+
+  .profile-mobile-summary {
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+
+  .profile-mobile-summary span {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  #profileToggleButton {
+    min-width: 76px;
+    min-height: 44px;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 }

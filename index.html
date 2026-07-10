@@ -48,18 +48,19 @@
         <button class="mobile-menu-close" type="button" id="mobileMenuClose" aria-label="메뉴 닫기">×</button>
       </div>
       <nav class="mobile-menu-list" aria-label="모바일 내비게이션">
-        <button type="button" data-view-target="ai" data-scroll-target="#question-panel" data-mobile-menu-close>AI 상담</button>
-        <button type="button" data-view-target="ai" data-scroll-target="#profile-section" data-mobile-menu-close>아이 프로필</button>
-        <button type="button" data-view-target="ai" data-scroll-target="#history-section" data-mobile-menu-close>질문 기록</button>
-        <button type="button" data-view-target="ai" data-scroll-target="#favorites-section" data-mobile-menu-close>즐겨찾기</button>
-        <button type="button" data-view-target="growth" data-scroll-target="[data-view='growth']" data-mobile-menu-close>성장 기록</button>
-        <button type="button" data-view-target="vaccines" data-scroll-target="[data-view='vaccines']" data-mobile-menu-close>예방접종</button>
-        <button type="button" data-view-target="settings" data-scroll-target="#settings-title" data-mobile-menu-close>설정</button>
-        <a href="mailto:support@yukacoach.app">문의하기</a>
-        <button type="button" id="mobileMenuLogoutButton" hidden>로그아웃</button>
+        <button type="button" data-view-target="ai" data-scroll-target="#question-panel" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">💬</span><span>AI 상담</span></button>
+        <button type="button" data-view-target="ai" data-scroll-target="#profile-section" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">👶</span><span>아이 프로필</span></button>
+        <button type="button" data-view-target="ai" data-scroll-target="#history-section" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">🕘</span><span>질문 기록</span></button>
+        <button type="button" data-view-target="ai" data-scroll-target="#favorites-section" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">♥</span><span>즐겨찾기</span></button>
+        <button type="button" data-view-target="growth" data-scroll-target="[data-view='growth']" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">📈</span><span>성장 기록</span></button>
+        <button type="button" data-view-target="vaccines" data-scroll-target="[data-view='vaccines']" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">💉</span><span>예방접종</span></button>
+        <button type="button" data-view-target="diary" data-scroll-target="[data-view='diary']" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">📚</span><span>육아백과</span></button>
+        <button type="button" data-view-target="settings" data-scroll-target="#settings-title" data-mobile-menu-close><span class="menu-icon" aria-hidden="true">⚙️</span><span>설정</span></button>
+        <a href="mailto:support@yukacoach.app"><span class="menu-icon" aria-hidden="true">✉️</span><span>문의하기</span></a>
+        <button type="button" id="mobileMenuLogoutButton" hidden><span class="menu-icon" aria-hidden="true">↩</span><span>로그아웃</span></button>
         <hr>
-        <a href="./privacy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a>
-        <a href="./terms.html" target="_blank" rel="noopener noreferrer">이용약관</a>
+        <a href="./privacy.html" target="_blank" rel="noopener noreferrer"><span class="menu-icon" aria-hidden="true">🛡️</span><span>개인정보처리방침</span></a>
+        <a href="./terms.html" target="_blank" rel="noopener noreferrer"><span class="menu-icon" aria-hidden="true">📄</span><span>이용약관</span></a>
         <span>버전 1.0.0</span>
       </nav>
     </aside>
@@ -220,7 +221,7 @@
           </div>
           <div class="profile-mobile-summary">
             <span id="profileSummaryMini">아이 프로필을 입력하면 더 맞춤형으로 답변해요.</span>
-            <button class="text-button" type="button" id="profileToggleButton" aria-expanded="false">펼치기</button>
+            <button class="text-button" type="button" id="profileToggleButton" aria-expanded="false">펼치기 ▼</button>
           </div>
 
           <form class="profile-form" id="profileForm">
@@ -311,12 +312,12 @@
 
         <div class="mobile-saved-accordion" aria-label="저장한 콘텐츠">
           <button type="button" id="mobileHistoryToggle" aria-expanded="false" aria-controls="history-section">
-            <span>질문 기록</span>
-            <span aria-hidden="true">▼</span>
+            <span class="accordion-label"><span class="accordion-icon" aria-hidden="true">🕘</span><span>질문 기록</span></span>
+            <span class="accordion-arrow" aria-hidden="true">▼</span>
           </button>
           <button type="button" id="mobileFavoritesToggle" aria-expanded="false" aria-controls="favorites-section">
-            <span>즐겨찾기</span>
-            <span aria-hidden="true">▼</span>
+            <span class="accordion-label"><span class="accordion-icon" aria-hidden="true">♥</span><span>즐겨찾기</span></span>
+            <span class="accordion-arrow" aria-hidden="true">▼</span>
           </button>
         </div>
 

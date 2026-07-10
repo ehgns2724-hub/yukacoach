@@ -479,8 +479,8 @@ function setMobileSavedPanel(panelName) {
   mobileHistoryToggle?.setAttribute("aria-expanded", String(showHistory));
   mobileFavoritesToggle?.setAttribute("aria-expanded", String(showFavorites));
 
-  const historyIcon = mobileHistoryToggle?.querySelector("[aria-hidden='true']");
-  const favoritesIcon = mobileFavoritesToggle?.querySelector("[aria-hidden='true']");
+  const historyIcon = mobileHistoryToggle?.querySelector(".accordion-arrow");
+  const favoritesIcon = mobileFavoritesToggle?.querySelector(".accordion-arrow");
 
   if (historyIcon) {
     historyIcon.textContent = showHistory ? "▲" : "▼";
@@ -1327,11 +1327,10 @@ function loadProfileForm() {
     const summaryParts = [
       profile.childName || "",
       profile.childMonths ? `${profile.childMonths}개월` : "",
-      profile.childGender || "",
-      profile.feedingType || ""
+      profile.childGender || ""
     ].filter(Boolean);
     const summaryText = summaryParts.length
-      ? `현재 아이: ${summaryParts.join(" · ")}`
+      ? `👶 ${summaryParts.join(" · ")}`
       : "아이 프로필을 입력하면 더 맞춤형으로 답변해요.";
     profileSummaryMini.textContent = summaryText;
 
@@ -2299,7 +2298,7 @@ if (profileToggleButton && profileCard) {
   profileToggleButton.addEventListener("click", () => {
     const isOpen = profileCard.classList.toggle("is-open");
     profileToggleButton.setAttribute("aria-expanded", String(isOpen));
-    profileToggleButton.textContent = isOpen ? "접기" : "펼치기";
+    profileToggleButton.textContent = isOpen ? "접기 ▲" : "펼치기 ▼";
   });
 }
 
