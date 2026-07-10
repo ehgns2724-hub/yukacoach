@@ -275,7 +275,8 @@ p {
 .mobile-menu-button,
 .mobile-menu,
 .mobile-menu-backdrop,
-.mobile-current-child {
+.mobile-current-child,
+.mobile-auth-card {
   display: none;
 }
 
@@ -1182,6 +1183,10 @@ textarea:focus {
   color: var(--primary-dark);
 }
 
+.mobile-footer-only {
+  display: none;
+}
+
 .legal-page {
   background: var(--background);
 }
@@ -1827,24 +1832,75 @@ textarea:focus {
   }
 
   .feature-view {
-    order: 1;
+    order: 3;
   }
 
-  .feature-tabs,
   .hero {
-    display: none;
+    order: 1;
+    display: grid;
+  }
+
+  .feature-tabs {
+    order: 2;
+    display: flex;
+  }
+
+  .feature-tab[data-view-target="diary"] {
+    font-size: 0;
+  }
+
+  .feature-tab[data-view-target="diary"]::after {
+    content: "육아백과";
+    font-size: 14px;
+  }
+
+  .mobile-auth-card {
+    order: 4;
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  .mobile-auth-card strong,
+  .mobile-auth-card span {
+    display: block;
+  }
+
+  .mobile-auth-card strong {
+    margin-bottom: 4px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .mobile-auth-card span {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .mobile-auth-actions {
+    display: grid;
+    gap: 10px;
   }
 
   .app-footer {
-    order: 9;
+    order: 5;
     margin-top: 26px;
     justify-content: center;
     gap: 6px 12px;
   }
 
   .app-footer a,
-  .app-footer span {
+  .app-footer span,
+  .footer-settings-button {
     font-size: 12px;
+  }
+
+  .mobile-footer-only {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .dashboard {
@@ -1862,16 +1918,20 @@ textarea:focus {
     order: 1;
   }
 
-  .profile-card {
+  .mobile-auth-card {
     order: 2;
   }
 
-  .main-column > .panel:not(.answer-panel) {
+  .profile-card {
     order: 3;
   }
 
-  .side-column > .panel:not(.profile-card) {
+  .main-column > .panel:not(.answer-panel):not(.mobile-auth-card) {
     order: 4;
+  }
+
+  .side-column > .panel:not(.profile-card) {
+    order: 5;
   }
 
   .question-panel {
@@ -1880,7 +1940,7 @@ textarea:focus {
 
   .mobile-current-child {
     order: -1;
-    display: block;
+    display: none;
     margin-bottom: 14px;
     padding: 14px 16px;
     color: var(--primary-dark);

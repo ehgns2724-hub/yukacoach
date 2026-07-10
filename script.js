@@ -52,6 +52,9 @@ const clearFavoritesButton = document.querySelector("#clearFavoritesButton");
 const loginButton = document.querySelector("#loginButton");
 const logoutButton = document.querySelector("#logoutButton");
 const authStatus = document.querySelector("#authStatus");
+const mobileLoginButton = document.querySelector("#mobileLoginButton");
+const mobileLogoutButton = document.querySelector("#mobileLogoutButton");
+const mobileAuthStatus = document.querySelector("#mobileAuthStatus");
 const authAvatar = document.querySelector("#authAvatar");
 const adminBadge = document.querySelector("#adminBadge");
 const toast = document.querySelector("#toast");
@@ -355,6 +358,22 @@ function closeMobileMenu() {
       mobileMenuButton?.focus();
     }
   }, 240);
+}
+
+function syncMobileAuthCard() {
+  if (mobileAuthStatus && authStatus) {
+    mobileAuthStatus.textContent = authStatus.textContent;
+  }
+
+  if (mobileLoginButton && loginButton) {
+    mobileLoginButton.hidden = loginButton.hidden;
+    mobileLoginButton.disabled = loginButton.disabled;
+  }
+
+  if (mobileLogoutButton && logoutButton) {
+    mobileLogoutButton.hidden = logoutButton.hidden;
+    mobileLogoutButton.disabled = logoutButton.disabled;
+  }
 }
 
 function withTimeout(promise, label, timeoutMs = FIRESTORE_TIMEOUT_MS) {
@@ -2159,6 +2178,22 @@ if (profileToggleButton && profileCard) {
 
 if (mobileMenuButton) {
   mobileMenuButton.addEventListener("click", openMobileMenu);
+}
+
+if (mobileLoginButton) {
+  mobileLoginButton.addEventListener("click", () => loginButton.click());
+}
+
+if (mobileLogoutButton) {
+  mobileLogoutButton.addEventListener("click", () => logoutButton.click());
+}
+
+if (mobileAuthStatus && authStatus) {
+  const mobileAuthObserver = new MutationObserver(syncMobileAuthCard);
+  mobileAuthObserver.observe(authStatus, { childList: true, subtree: true });
+  mobileAuthObserver.observe(loginButton, { attributes: true, attributeFilter: ["hidden", "disabled"] });
+  mobileAuthObserver.observe(logoutButton, { attributes: true, attributeFilter: ["hidden", "disabled"] });
+  syncMobileAuthCard();
 }
 
 if (mobileMenuClose) {
