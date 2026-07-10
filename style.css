@@ -211,6 +211,10 @@ p {
   display: none;
 }
 
+.mobile-hero-question {
+  display: none;
+}
+
 .auth-card {
   width: min(100%, 560px);
   display: flex;
@@ -1841,22 +1845,22 @@ textarea:focus {
 
   .hero {
     order: 1;
-    display: grid;
-    gap: 18px;
+    display: block;
+    gap: 0;
     min-height: auto;
-    margin-bottom: 14px;
-    padding: 24px 20px;
-    border-radius: 26px;
+    margin-bottom: 12px;
+    padding: 18px 16px;
+    border-radius: 22px;
   }
 
   .hero h1 {
-    margin-bottom: 8px;
-    font-size: 42px;
+    margin-bottom: 6px;
+    font-size: 34px;
   }
 
   .hero h2 {
-    margin-bottom: 8px;
-    font-size: 24px;
+    margin-bottom: 10px;
+    font-size: 21px;
   }
 
   .hero p:not(.eyebrow):not(.mobile-hero-prompt) {
@@ -1864,24 +1868,62 @@ textarea:focus {
   }
 
   .mobile-hero-prompt {
-    display: block;
-    margin-bottom: 14px;
+    display: none;
+  }
+
+  .mobile-hero-question {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .mobile-hero-question input {
+    width: 100%;
+    min-height: 56px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 0 16px;
+    color: var(--text);
+    background: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    outline: none;
+  }
+
+  .mobile-hero-question .primary-button {
+    width: 100%;
+    min-height: 52px;
+  }
+
+  .hero-cta {
+    display: none;
+  }
+
+  .hero-copy {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-visual {
+    display: none;
+  }
+
+  .asset-credit {
+    display: none;
+  }
+
+  .eyebrow {
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+
+  .hero-copy .mobile-hero-prompt {
+    display: none;
+    margin-bottom: 0;
     color: var(--muted);
     font-size: 16px;
     font-weight: 800;
     line-height: 1.5;
-  }
-
-  .hero-visual {
-    min-height: 180px;
-  }
-
-  .illustration-shell {
-    min-height: 180px;
-  }
-
-  .hero-illustration {
-    max-height: 180px;
   }
 
   .feature-tabs {
@@ -2008,7 +2050,7 @@ textarea:focus {
 
   .question-panel {
     margin-bottom: 16px;
-    padding: 18px;
+    padding: 14px 16px;
   }
 
   .question-panel .section-heading {
@@ -2017,6 +2059,10 @@ textarea:focus {
 
   .search-form {
     gap: 10px;
+  }
+
+  .question-panel .search-row {
+    display: none;
   }
 
   .photo-upload-area {

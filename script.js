@@ -35,6 +35,8 @@ const mobileMenuBackdrop = document.querySelector("#mobileMenuBackdrop");
 
 const searchForm = document.querySelector("#searchForm");
 const questionInput = document.querySelector("#questionInput");
+const mobileHeroQuestionInput = document.querySelector("#mobileHeroQuestionInput");
+const mobileHeroQuestionButton = document.querySelector("#mobileHeroQuestionButton");
 const photoInput = document.querySelector("#photoInput");
 const photoPreview = document.querySelector("#photoPreview");
 const photoPreviewImage = document.querySelector("#photoPreviewImage");
@@ -2041,6 +2043,10 @@ async function askQuestion(question) {
   scrollToAnswerSection();
   searchButton.disabled = true;
   searchButton.textContent = hasPhoto ? "분석중..." : "상담 중";
+  if (mobileHeroQuestionButton) {
+    mobileHeroQuestionButton.disabled = true;
+    mobileHeroQuestionButton.textContent = hasPhoto ? "분석중..." : "상담 중";
+  }
 
   try {
     const usageResult = await reserveDailyUsage(hasPhoto);
@@ -2125,6 +2131,10 @@ async function askQuestion(question) {
     isSubmittingQuestion = false;
     searchButton.disabled = false;
     searchButton.textContent = "질문하기";
+    if (mobileHeroQuestionButton) {
+      mobileHeroQuestionButton.disabled = false;
+      mobileHeroQuestionButton.textContent = "질문하기";
+    }
     updateUsageStatus(Boolean(selectedPhoto));
   }
 }
@@ -2228,6 +2238,29 @@ searchForm.addEventListener("submit", (event) => {
 
   askQuestion(question);
 });
+
+if (mobileHeroQuestionButton && mobileHeroQuestionInput) {
+  mobileHeroQuestionButton.addEventListener("click", () => {
+    const question = mobileHeroQuestionInput.value.trim();
+
+    if (!question) {
+      mobileHeroQuestionInput.focus();
+      return;
+    }
+
+    questionInput.value = question;
+    askQuestion(question);
+  });
+
+  mobileHeroQuestionInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    mobileHeroQuestionButton.click();
+  });
+}
 
 photoInput.addEventListener("change", handlePhotoChange);
 removePhotoButton.addEventListener("click", () => {
