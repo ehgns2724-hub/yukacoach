@@ -32,7 +32,7 @@ const photoPreview = document.querySelector("#photoPreview");
 const photoPreviewImage = document.querySelector("#photoPreviewImage");
 const photoPreviewName = document.querySelector("#photoPreviewName");
 const removePhotoButton = document.querySelector("#removePhotoButton");
-const resultPanel = document.querySelector("#resultPanel");
+const resultPanel = document.querySelector("#answer-section");
 const searchButton = document.querySelector("#searchButton");
 const quickQuestionButtons = document.querySelectorAll("[data-question]");
 
@@ -290,6 +290,16 @@ function showToast(message) {
     toast.classList.remove("is-visible");
     toast.hidden = true;
   }, 2600);
+}
+
+function scrollToAnswerSection() {
+  const answerSection = document.querySelector("#answer-section");
+
+  if (!answerSection) {
+    return;
+  }
+
+  answerSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function withTimeout(promise, label, timeoutMs = FIRESTORE_TIMEOUT_MS) {
@@ -1609,6 +1619,7 @@ async function askQuestion(question) {
   });
 
   setLoading(finalQuestion, hasPhoto);
+  scrollToAnswerSection();
   searchButton.disabled = true;
   searchButton.textContent = hasPhoto ? "분석중..." : "상담 중";
 
@@ -1680,6 +1691,7 @@ async function askQuestion(question) {
       truncated: data.truncated,
       finishReason: data.finishReason
     });
+    scrollToAnswerSection();
   } catch (error) {
     console.error("Failed to ask Gemini:", error);
 
@@ -1688,6 +1700,8 @@ async function askQuestion(question) {
     } else {
       renderError(error.userMessage || USER_ERROR_MESSAGES.API_ERROR);
     }
+
+    scrollToAnswerSection();
   } finally {
     searchButton.disabled = false;
     searchButton.textContent = "질문하기";

@@ -1402,6 +1402,35 @@ textarea:focus {
   }
 }
 
+@media (max-width: 768px) {
+  .dashboard {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .side-column,
+  .main-column {
+    display: contents;
+  }
+
+  .answer-panel {
+    order: 1;
+  }
+
+  .profile-card {
+    order: 2;
+  }
+
+  .main-column > .panel:not(.answer-panel) {
+    order: 3;
+  }
+
+  .side-column > .panel:not(.profile-card) {
+    order: 4;
+  }
+}
+
 @media (max-width: 430px) {
   .quick-questions {
     display: grid;
