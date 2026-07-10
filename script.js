@@ -2133,8 +2133,18 @@ featureTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     const target = tab.dataset.viewTarget;
 
-    featureTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+    featureTabs.forEach((item) => item.classList.toggle("is-active", item.dataset.viewTarget === target));
     featureViews.forEach((view) => view.classList.toggle("is-active", view.dataset.view === target));
+
+    const scrollTarget = tab.dataset.scrollTarget
+      ? document.querySelector(tab.dataset.scrollTarget)
+      : document.querySelector(`[data-view="${target}"]`);
+
+    if (scrollTarget) {
+      window.setTimeout(() => {
+        scrollTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
   });
 });
 
