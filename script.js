@@ -2389,10 +2389,6 @@ document.querySelectorAll("[data-mobile-menu-close]").forEach((item) => {
   item.addEventListener("click", closeMobileMenu);
 });
 
-document.querySelectorAll(".mobile-menu a").forEach((item) => {
-  item.addEventListener("click", closeMobileMenu);
-});
-
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
