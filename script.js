@@ -27,6 +27,11 @@ const clearProfileButton = document.querySelector("#clearProfileButton");
 const profileSummaryMini = document.querySelector("#profileSummaryMini");
 const profileToggleButton = document.querySelector("#profileToggleButton");
 const profileCard = document.querySelector(".profile-card");
+const mobileChildSummary = document.querySelector("#mobileChildSummary");
+const mobileMenuButton = document.querySelector("#mobileMenuButton");
+const mobileMenu = document.querySelector("#mobileMenu");
+const mobileMenuClose = document.querySelector("#mobileMenuClose");
+const mobileMenuBackdrop = document.querySelector("#mobileMenuBackdrop");
 
 const searchForm = document.querySelector("#searchForm");
 const questionInput = document.querySelector("#questionInput");
@@ -313,6 +318,43 @@ function scrollToAnswerSection() {
   }
 
   answerSection.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function openMobileMenu() {
+  if (!mobileMenu || !mobileMenuButton || !mobileMenuBackdrop) {
+    return;
+  }
+
+  mobileMenu.hidden = false;
+  mobileMenuBackdrop.hidden = false;
+  window.requestAnimationFrame(() => {
+    document.body.classList.add("mobile-menu-open");
+    mobileMenu.classList.add("is-open");
+    mobileMenuBackdrop.classList.add("is-open");
+    mobileMenu.setAttribute("aria-hidden", "false");
+    mobileMenuButton.setAttribute("aria-expanded", "true");
+    mobileMenuClose?.focus();
+  });
+}
+
+function closeMobileMenu() {
+  if (!mobileMenu || !mobileMenuButton || !mobileMenuBackdrop) {
+    return;
+  }
+
+  document.body.classList.remove("mobile-menu-open");
+  mobileMenu.classList.remove("is-open");
+  mobileMenuBackdrop.classList.remove("is-open");
+  mobileMenu.setAttribute("aria-hidden", "true");
+  mobileMenuButton.setAttribute("aria-expanded", "false");
+
+  window.setTimeout(() => {
+    if (!mobileMenu.classList.contains("is-open")) {
+      mobileMenu.hidden = true;
+      mobileMenuBackdrop.hidden = true;
+      mobileMenuButton?.focus();
+    }
+  }, 240);
 }
 
 function withTimeout(promise, label, timeoutMs = FIRESTORE_TIMEOUT_MS) {
@@ -1152,9 +1194,14 @@ function loadProfileForm() {
       profile.childGender || "",
       profile.feedingType || ""
     ].filter(Boolean);
-    profileSummaryMini.textContent = summaryParts.length
+    const summaryText = summaryParts.length
       ? `현재 아이: ${summaryParts.join(" · ")}`
       : "아이 프로필을 입력하면 더 맞춤형으로 답변해요.";
+    profileSummaryMini.textContent = summaryText;
+
+    if (mobileChildSummary) {
+      mobileChildSummary.textContent = summaryText;
+    }
   }
 }
 
@@ -2109,6 +2156,32 @@ if (profileToggleButton && profileCard) {
     profileToggleButton.textContent = isOpen ? "접기" : "펼치기";
   });
 }
+
+if (mobileMenuButton) {
+  mobileMenuButton.addEventListener("click", openMobileMenu);
+}
+
+if (mobileMenuClose) {
+  mobileMenuClose.addEventListener("click", closeMobileMenu);
+}
+
+if (mobileMenuBackdrop) {
+  mobileMenuBackdrop.addEventListener("click", closeMobileMenu);
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeMobileMenu();
+  }
+});
+
+document.querySelectorAll("[data-mobile-menu-close]").forEach((item) => {
+  item.addEventListener("click", closeMobileMenu);
+});
+
+document.querySelectorAll(".mobile-menu a").forEach((item) => {
+  item.addEventListener("click", closeMobileMenu);
+});
 
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
