@@ -2038,7 +2038,7 @@ textarea:focus {
 
   .mobile-current-child {
     order: -1;
-    display: none;
+    display: block;
     margin-bottom: 14px;
     padding: 14px 16px;
     color: var(--primary-dark);

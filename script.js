@@ -361,10 +361,6 @@ function closeMobileMenu() {
 }
 
 function syncMobileAuthCard() {
-  if (mobileAuthStatus && authStatus) {
-    mobileAuthStatus.textContent = authStatus.textContent;
-  }
-
   if (mobileLoginButton && loginButton) {
     mobileLoginButton.hidden = loginButton.hidden;
     mobileLoginButton.disabled = loginButton.disabled;
