@@ -32,6 +32,17 @@ const mobileMenuButton = document.querySelector("#mobileMenuButton");
 const mobileMenu = document.querySelector("#mobileMenu");
 const mobileMenuClose = document.querySelector("#mobileMenuClose");
 const mobileMenuBackdrop = document.querySelector("#mobileMenuBackdrop");
+const mobileHeaderAuthButton = document.querySelector("#mobileHeaderAuthButton");
+const mobileMenuLogoutButton = document.querySelector("#mobileMenuLogoutButton");
+const authModal = document.querySelector("#authModal");
+const authModalBackdrop = document.querySelector("#authModalBackdrop");
+const authModalClose = document.querySelector("#authModalClose");
+const authLoginTab = document.querySelector("#authLoginTab");
+const authSignupTab = document.querySelector("#authSignupTab");
+const authLoginPanel = document.querySelector("#authLoginPanel");
+const authSignupPanel = document.querySelector("#authSignupPanel");
+const authLoginGoogleButton = document.querySelector("#authLoginGoogleButton");
+const authSignupGoogleButton = document.querySelector("#authSignupGoogleButton");
 
 const searchForm = document.querySelector("#searchForm");
 const questionInput = document.querySelector("#questionInput");
@@ -51,6 +62,8 @@ const historyList = document.querySelector("#historyList");
 const favoritesList = document.querySelector("#favoritesList");
 const clearHistoryButton = document.querySelector("#clearHistoryButton");
 const clearFavoritesButton = document.querySelector("#clearFavoritesButton");
+const mobileHistoryToggle = document.querySelector("#mobileHistoryToggle");
+const mobileFavoritesToggle = document.querySelector("#mobileFavoritesToggle");
 const loginButton = document.querySelector("#loginButton");
 const logoutButton = document.querySelector("#logoutButton");
 const authStatus = document.querySelector("#authStatus");
@@ -362,6 +375,82 @@ function closeMobileMenu() {
   }, 240);
 }
 
+function setAuthModalTab(mode = "login") {
+  const isSignup = mode === "signup";
+
+  authLoginTab?.classList.toggle("is-active", !isSignup);
+  authSignupTab?.classList.toggle("is-active", isSignup);
+  authLoginTab?.setAttribute("aria-selected", String(!isSignup));
+  authSignupTab?.setAttribute("aria-selected", String(isSignup));
+
+  authLoginPanel?.classList.toggle("is-active", !isSignup);
+  authSignupPanel?.classList.toggle("is-active", isSignup);
+
+  if (authLoginPanel) {
+    authLoginPanel.hidden = isSignup;
+  }
+
+  if (authSignupPanel) {
+    authSignupPanel.hidden = !isSignup;
+  }
+}
+
+function openAuthModal(mode = "login") {
+  if (!authModal || !authModalBackdrop) {
+    loginButton?.click();
+    return;
+  }
+
+  setAuthModalTab(mode);
+  authModal.hidden = false;
+  authModalBackdrop.hidden = false;
+  window.requestAnimationFrame(() => {
+    document.body.classList.add("auth-modal-open");
+    authModal.classList.add("is-open");
+    authModalBackdrop.classList.add("is-open");
+    authModal.setAttribute("aria-hidden", "false");
+    mobileHeaderAuthButton?.setAttribute("aria-expanded", "true");
+    authModalClose?.focus();
+  });
+}
+
+function closeAuthModal() {
+  if (!authModal || !authModalBackdrop) {
+    return;
+  }
+
+  document.body.classList.remove("auth-modal-open");
+  authModal.classList.remove("is-open");
+  authModalBackdrop.classList.remove("is-open");
+  authModal.setAttribute("aria-hidden", "true");
+  mobileHeaderAuthButton?.setAttribute("aria-expanded", "false");
+
+  window.setTimeout(() => {
+    if (!authModal.classList.contains("is-open")) {
+      authModal.hidden = true;
+      authModalBackdrop.hidden = true;
+    }
+  }, 220);
+}
+
+function getUserDisplayName(user) {
+  if (!user) {
+    return "로그인";
+  }
+
+  const label = user.displayName || user.email || "내 계정";
+  return label.length > 8 ? "내 계정" : label;
+}
+
+function syncMobileHeaderAuth() {
+  if (!mobileHeaderAuthButton) {
+    return;
+  }
+
+  mobileHeaderAuthButton.textContent = getUserDisplayName(firebaseState.user);
+  mobileHeaderAuthButton.disabled = !firebaseState.user && !firebaseState.enabled;
+}
+
 function syncMobileAuthCard() {
   if (mobileLoginButton && loginButton) {
     mobileLoginButton.hidden = loginButton.hidden;
@@ -371,6 +460,34 @@ function syncMobileAuthCard() {
   if (mobileLogoutButton && logoutButton) {
     mobileLogoutButton.hidden = logoutButton.hidden;
     mobileLogoutButton.disabled = logoutButton.disabled;
+  }
+
+  if (mobileMenuLogoutButton && logoutButton) {
+    mobileMenuLogoutButton.hidden = logoutButton.hidden;
+    mobileMenuLogoutButton.disabled = logoutButton.disabled;
+  }
+
+  syncMobileHeaderAuth();
+}
+
+function setMobileSavedPanel(panelName) {
+  const showHistory = panelName === "history" && !document.querySelector("#history-section")?.classList.contains("is-mobile-expanded");
+  const showFavorites = panelName === "favorites" && !document.querySelector("#favorites-section")?.classList.contains("is-mobile-expanded");
+
+  document.querySelector("#history-section")?.classList.toggle("is-mobile-expanded", showHistory);
+  document.querySelector("#favorites-section")?.classList.toggle("is-mobile-expanded", showFavorites);
+  mobileHistoryToggle?.setAttribute("aria-expanded", String(showHistory));
+  mobileFavoritesToggle?.setAttribute("aria-expanded", String(showFavorites));
+
+  const historyIcon = mobileHistoryToggle?.querySelector("[aria-hidden='true']");
+  const favoritesIcon = mobileFavoritesToggle?.querySelector("[aria-hidden='true']");
+
+  if (historyIcon) {
+    historyIcon.textContent = showHistory ? "▲" : "▼";
+  }
+
+  if (favoritesIcon) {
+    favoritesIcon.textContent = showFavorites ? "▲" : "▼";
   }
 }
 
@@ -1009,6 +1126,7 @@ function updateAuthUI(user) {
       adminBadge.hidden = !firebaseState.isAdmin;
     }
 
+    syncMobileAuthCard();
     updateUsageStatus();
     return;
   }
@@ -1037,6 +1155,7 @@ function updateAuthUI(user) {
     adminBadge.hidden = true;
   }
 
+  syncMobileAuthCard();
   updateUsageStatus();
 }
 
@@ -1603,7 +1722,7 @@ function renderHistory() {
   historyList.innerHTML = "";
 
   if (!history.length) {
-    historyList.append(createEmptyMessage("아직 질문 기록이 없습니다."));
+    historyList.append(createEmptyMessage("아직 저장된 질문이 없어요."));
     return;
   }
 
@@ -1617,7 +1736,7 @@ function renderFavorites() {
   favoritesList.innerHTML = "";
 
   if (!favorites.length) {
-    favoritesList.append(createEmptyMessage("저장한 즐겨찾기가 없습니다."));
+    favoritesList.append(createEmptyMessage("아직 즐겨찾기한 답변이 없어요."));
     return;
   }
 
@@ -2042,10 +2161,10 @@ async function askQuestion(question) {
   setLoading(finalQuestion, hasPhoto);
   scrollToAnswerSection();
   searchButton.disabled = true;
-  searchButton.textContent = hasPhoto ? "분석중..." : "상담 중";
+  searchButton.textContent = "답변 작성 중...";
   if (mobileHeroQuestionButton) {
     mobileHeroQuestionButton.disabled = true;
-    mobileHeroQuestionButton.textContent = hasPhoto ? "분석중..." : "상담 중";
+    mobileHeroQuestionButton.textContent = "답변 작성 중...";
   }
 
   try {
@@ -2188,12 +2307,60 @@ if (mobileMenuButton) {
   mobileMenuButton.addEventListener("click", openMobileMenu);
 }
 
+if (mobileHeaderAuthButton) {
+  mobileHeaderAuthButton.addEventListener("click", () => {
+    if (firebaseState.user) {
+      openMobileMenu();
+      return;
+    }
+
+    openAuthModal("login");
+  });
+}
+
+if (authLoginTab) {
+  authLoginTab.addEventListener("click", () => setAuthModalTab("login"));
+}
+
+if (authSignupTab) {
+  authSignupTab.addEventListener("click", () => setAuthModalTab("signup"));
+}
+
+if (authModalClose) {
+  authModalClose.addEventListener("click", closeAuthModal);
+}
+
+if (authModalBackdrop) {
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+}
+
+if (authLoginGoogleButton) {
+  authLoginGoogleButton.addEventListener("click", () => {
+    closeAuthModal();
+    loginButton.click();
+  });
+}
+
+if (authSignupGoogleButton) {
+  authSignupGoogleButton.addEventListener("click", () => {
+    closeAuthModal();
+    loginButton.click();
+  });
+}
+
 if (mobileLoginButton) {
-  mobileLoginButton.addEventListener("click", () => loginButton.click());
+  mobileLoginButton.addEventListener("click", () => openAuthModal("login"));
 }
 
 if (mobileLogoutButton) {
   mobileLogoutButton.addEventListener("click", () => logoutButton.click());
+}
+
+if (mobileMenuLogoutButton) {
+  mobileMenuLogoutButton.addEventListener("click", () => {
+    closeMobileMenu();
+    logoutButton.click();
+  });
 }
 
 if (mobileAuthStatus && authStatus) {
@@ -2215,6 +2382,7 @@ if (mobileMenuBackdrop) {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeMobileMenu();
+    closeAuthModal();
   }
 });
 
@@ -2294,6 +2462,14 @@ quickQuestionButtons.forEach((button) => {
     askQuestion(question);
   });
 });
+
+if (mobileHistoryToggle) {
+  mobileHistoryToggle.addEventListener("click", () => setMobileSavedPanel("history"));
+}
+
+if (mobileFavoritesToggle) {
+  mobileFavoritesToggle.addEventListener("click", () => setMobileSavedPanel("favorites"));
+}
 
 clearHistoryButton.addEventListener("click", clearAllHistory);
 clearFavoritesButton.addEventListener("click", clearAllFavorites);

@@ -30,6 +30,14 @@
         </div>
       </div>
 
+      <button
+        class="mobile-header-auth-button"
+        type="button"
+        id="mobileHeaderAuthButton"
+        aria-label="로그인 또는 계정 메뉴 열기"
+        aria-controls="authModal"
+        aria-expanded="false"
+      >로그인</button>
       <button class="mobile-menu-button" type="button" id="mobileMenuButton" aria-label="메뉴 열기" aria-controls="mobileMenu" aria-expanded="false">☰</button>
     </header>
 
@@ -48,12 +56,40 @@
         <button type="button" data-view-target="vaccines" data-scroll-target="[data-view='vaccines']" data-mobile-menu-close>예방접종</button>
         <button type="button" data-view-target="settings" data-scroll-target="#settings-title" data-mobile-menu-close>설정</button>
         <a href="mailto:support@yukacoach.app">문의하기</a>
+        <button type="button" id="mobileMenuLogoutButton" hidden>로그아웃</button>
         <hr>
         <a href="./privacy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a>
         <a href="./terms.html" target="_blank" rel="noopener noreferrer">이용약관</a>
         <span>버전 1.0.0</span>
       </nav>
     </aside>
+
+    <div class="auth-modal-backdrop" id="authModalBackdrop" hidden></div>
+    <section class="auth-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" aria-hidden="true" hidden>
+      <div class="auth-modal-sheet">
+        <div class="auth-modal-header">
+          <h2 id="authModalTitle">육아코치 시작하기</h2>
+          <button class="auth-modal-close" type="button" id="authModalClose" aria-label="로그인 창 닫기">×</button>
+        </div>
+        <div class="auth-modal-tabs" role="tablist" aria-label="로그인과 회원가입 선택">
+          <button class="auth-modal-tab is-active" type="button" id="authLoginTab" role="tab" aria-selected="true" aria-controls="authLoginPanel">로그인</button>
+          <button class="auth-modal-tab" type="button" id="authSignupTab" role="tab" aria-selected="false" aria-controls="authSignupPanel">회원가입</button>
+        </div>
+        <div class="auth-modal-panel is-active" id="authLoginPanel" role="tabpanel" aria-labelledby="authLoginTab">
+          <p>이미 가입한 Google 계정으로 아이 프로필과 질문 기록을 이어서 사용할 수 있어요.</p>
+          <button class="google-button" type="button" id="authLoginGoogleButton">Google로 로그인</button>
+        </div>
+        <div class="auth-modal-panel" id="authSignupPanel" role="tabpanel" aria-labelledby="authSignupTab" hidden>
+          <p>회원가입하면 질문 기록, 아이 프로필, 즐겨찾기를 여러 기기에서 이용할 수 있어요.</p>
+          <button class="google-button" type="button" id="authSignupGoogleButton">Google로 회원가입</button>
+          <small>
+            계속하면
+            <a href="./privacy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a> 및
+            <a href="./terms.html" target="_blank" rel="noopener noreferrer">이용약관</a>에 동의한 것으로 간주됩니다.
+          </small>
+        </div>
+      </div>
+    </section>
 
     <section class="hero reveal">
       <div class="hero-copy">
@@ -122,6 +158,10 @@
 
       <form class="search-form" id="searchForm">
         <div class="usage-status" id="usageStatus" aria-live="polite">오늘 남은 질문 횟수를 확인하고 있어요.</div>
+        <div class="mobile-question-guide">
+          <strong>지금 궁금한 육아 고민을 물어보세요</strong>
+          <span>아이의 나이와 상황을 자세히 적을수록 더 알맞은 답변을 받을 수 있어요.</span>
+        </div>
         <div class="photo-upload-area">
           <input
             class="photo-input"
@@ -268,6 +308,17 @@
 응급상황 또는 심각한 증상이 의심되는 경우 즉시 의료기관을 방문하세요.</p>
           </div>
         </section>
+
+        <div class="mobile-saved-accordion" aria-label="저장한 콘텐츠">
+          <button type="button" id="mobileHistoryToggle" aria-expanded="false" aria-controls="history-section">
+            <span>질문 기록</span>
+            <span aria-hidden="true">▼</span>
+          </button>
+          <button type="button" id="mobileFavoritesToggle" aria-expanded="false" aria-controls="favorites-section">
+            <span>즐겨찾기</span>
+            <span aria-hidden="true">▼</span>
+          </button>
+        </div>
 
         <section class="mobile-auth-card panel" aria-label="로그인">
           <div>
